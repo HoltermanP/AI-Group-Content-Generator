@@ -1,0 +1,228 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ─── Auth ─────────────────────────────────────────────────────────────────────
+
+model User {
+  id                 String   @id @default(cuid())
+  email              String   @unique
+  name               String
+  passwordHash       String
+  // SHA-256 hash van het Chrome-extensietoken; het token zelf wordt nooit opgeslagen
+  extensionTokenHash String?  @unique
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  companyProfile   CompanyProfile?
+  contentSettings  ContentSettings?
+  products         Product[]
+  posts            Post[]
+  schedules        PublicationSchedule[]
+  publicationLogs  PublicationLog[]
+  integrations     IntegrationAccount[]
+}
+
+// ─── Bedrijfsprofiel ──────────────────────────────────────────────────────────
+
+model CompanyProfile {
+  id               String   @id @default(cuid())
+  userId           String   @unique
+  companyName      String
+  shortDescription String
+  longDescription  String
+  websiteUrl       String   @default("https://www.ai-group.nl")
+  websiteSummary   String?  // automatisch opgehaalde samenvatting van de website
+  toneOfVoice      String
+  targetAudience   String
+  themes           String[]
+  defaultCta       String
+  forbiddenPhrases String[]
+  writingStyle     String
+  defaultHashtags  String[]
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+// ─── Producten en diensten ────────────────────────────────────────────────────
+
+model Product {
+  id               String   @id @default(cuid())
+  userId           String
+  name             String
+  shortDescription String
+  longDescription  String
+  targetAudience   String
+  problem          String
+  benefits         String
+  useCases         String
+  cta              String
+  websiteUrl       String?
+  active           Boolean  @default(true)
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  user  User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  posts Post[]
+
+  @@index([userId])
+}
+
+// ─── Contentinstellingen ──────────────────────────────────────────────────────
+
+model ContentSettings {
+  id                   String   @id @default(cuid())
+  userId               String   @unique
+  frequencyDays        Int      @default(2) // publiceer elke X dagen
+  minDaysBetween       Int      @default(1)
+  preferredDays        Int[]    @default([1, 2, 3, 4, 5]) // 0=zo .. 6=za
+  windowStart          String   @default("08:00")
+  windowEnd            String   @default("18:00")
+  timeVariationMinutes Int      @default(45) // natuurlijke spreiding rond het gekozen moment
+  postLength           String   @default("kort") // kort | middel | lang
+  style                String   @default("persoonlijk, concreet, zakelijk, direct")
+  useEmojis            Boolean  @default(false)
+  hashtagCount         Int      @default(3)
+  defaultCta           String   @default("Bekijk meer op www.ai-group.nl")
+  autoGenerate         Boolean  @default(false) // automatisch nieuwe conceptposts genereren
+  autoPublish          Boolean  @default(false) // automatisch publiceren ná goedkeuring
+  planAheadDays        Int      @default(14) // hoeveel dagen vooruit plannen
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+// ─── Posts ────────────────────────────────────────────────────────────────────
+
+enum PostStatus {
+  DRAFT            // concept
+  SCHEDULED        // ingepland
+  PENDING_APPROVAL // wacht op goedkeuring
+  APPROVED         // goedgekeurd
+  PUBLISHED        // gepubliceerd
+  REJECTED         // afgewezen
+  FAILED           // mislukt
+}
+
+enum PostSourceType {
+  COMPANY       // op basis van bedrijfsprofiel
+  PRODUCT       // op basis van één product
+  MULTI_PRODUCT // op basis van meerdere producten
+  FREE_TOPIC    // vrij onderwerp
+  NEWS          // actualiteit / nieuws
+  CASE          // praktijkcase
+}
+
+enum ImageStatus {
+  NONE       // nog geen afbeelding
+  PENDING    // prompt klaar, afbeelding nog niet gegenereerd
+  GENERATING // bezig
+  COMPLETED  // klaar
+  FAILED     // mislukt
+}
+
+model Post {
+  id          String         @id @default(cuid())
+  userId      String
+  title       String // interne titel
+  summary     String // korte samenvatting
+  body        String // volledige LinkedIn-posttekst
+  cta         String
+  hashtags    String[]
+  status      PostStatus     @default(DRAFT)
+  sourceType  PostSourceType @default(COMPANY)
+  topic       String? // vrij onderwerp / actualiteit / case-omschrijving
+  productId   String? // primair gekoppeld product
+  productIds  String[]       @default([]) // alle gekoppelde producten
+  scheduledAt DateTime?
+  approvedAt  DateTime?
+  publishedAt DateTime?
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+
+  user    User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  product Product?   @relation(fields: [productId], references: [id], onDelete: SetNull)
+  image   PostImage?
+  logs    PublicationLog[]
+  schedule PublicationSchedule?
+
+  @@index([userId, status])
+  @@index([userId, scheduledAt])
+}
+
+model PostImage {
+  id            String      @id @default(cuid())
+  postId        String      @unique
+  imagePrompt   String
+  imageUrl      String?
+  imageProvider String? // "openai" | "stub" | ...
+  imageStatus   ImageStatus @default(PENDING)
+  errorMessage  String?
+  generatedAt   DateTime?
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+
+  post Post @relation(fields: [postId], references: [id], onDelete: Cascade)
+}
+
+// ─── Planning en publicatie ───────────────────────────────────────────────────
+
+model PublicationSchedule {
+  id        String   @id @default(cuid())
+  userId    String
+  postId    String   @unique
+  plannedAt DateTime
+  source    String   @default("manual") // manual | auto-fill | cron
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  post Post @relation(fields: [postId], references: [id], onDelete: Cascade)
+
+  @@index([userId, plannedAt])
+}
+
+model PublicationLog {
+  id          String   @id @default(cuid())
+  userId      String
+  postId      String
+  provider    String // "linkedin" | "manual" | "stub"
+  status      String // "success" | "failed" | "skipped"
+  message     String?
+  externalId  String? // id van de LinkedIn-post bij succes
+  attemptedAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  post Post @relation(fields: [postId], references: [id], onDelete: Cascade)
+
+  @@index([userId, postId])
+}
+
+// ─── Integraties ──────────────────────────────────────────────────────────────
+
+model IntegrationAccount {
+  id                String    @id @default(cuid())
+  userId            String
+  provider          String // "linkedin"
+  providerAccountId String? // LinkedIn member URN
+  accessToken       String? // alleen server-side gebruikt, nooit naar de client gestuurd
+  refreshToken      String?
+  expiresAt         DateTime?
+  active            Boolean   @default(false)
+  lastError         String?
+  lastPublishedAt   DateTime?
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, provider])
+}

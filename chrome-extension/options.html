@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+  <meta charset="UTF-8" />
+  <title>AI-Group Publicatie-assistent — Instellingen</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body class="options">
+  <h1>Instellingen</h1>
+  <p class="muted">
+    Verbind de extensie met je AI-Group contentapplicatie. Het token genereer je in de app onder
+    <strong>Integraties → Chrome-extensie</strong>.
+  </p>
+
+  <label for="baseUrl">App-URL</label>
+  <input id="baseUrl" type="url" placeholder="https://jouw-app.vercel.app" />
+
+  <label for="token">Extensietoken</label>
+  <input id="token" type="password" placeholder="aigx_..." />
+
+  <div class="row">
+    <button id="save" class="primary">Opslaan</button>
+    <button id="test">Verbinding testen</button>
+  </div>
+  <p id="status" class="status"></p>
+
+  <script src="options.js"></script>
+</body>
+</html>
