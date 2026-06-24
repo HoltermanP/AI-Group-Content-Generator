@@ -148,9 +148,17 @@ is per direct intrekbaar.
 - `GET /api/cron/generate-posts` — genereert conceptposts (status *wacht op goedkeuring*) voor gebruikers
   met automatische generatie aan, alléén als er onvoldoende geplande posts zijn binnen de horizon
   (standaard 14 dagen vooruit). Wisselt producten en onderwerpen af en vermijdt herhaling van CTA's.
-- `GET /api/cron/publish-posts` — publiceert **goedgekeurde** posts op hun geplande moment, alleen bij
-  actieve LinkedIn-koppeling én automatische publicatie aan.
+- `GET /api/cron/publish-posts` — publiceert **goedgekeurde** posts waarvan het geplande moment is
+  bereikt, alleen bij actieve LinkedIn-koppeling én automatische publicatie aan.
 - Beide vereisen `Authorization: Bearer ${CRON_SECRET}`. Op Vercel geregeld via `vercel.json`; lokaal:
+
+> **Vercel Hobby-plan:** cron-jobs mogen daar maximaal **één keer per dag** draaien. Daarom staan beide
+> schedules in `vercel.json` op dagelijks (`generate-posts` om 06:00, `publish-posts` om 07:00 UTC).
+> Gevolg: een goedgekeurde post wordt op die dagelijkse run gepubliceerd, niet exact op het geplande
+> tijdstip. Wil je publiceren dichter op het geplande moment (bijv. elk kwartier `*/15 * * * *`), dan
+> heb je het Vercel Pro-plan nodig — pas dan de `publish-posts`-schedule aan. Alternatief zonder
+> upgrade: publiceer handmatig via de app of de Chrome-extensie, of trigger de cron-route zelf met het
+> `CRON_SECRET`.
 
 ```bash
 curl -H "Authorization: Bearer <CRON_SECRET>" http://localhost:3000/api/cron/generate-posts
