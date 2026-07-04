@@ -1,6 +1,7 @@
 import type { Post, PostSourceType, Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { generatePostContent } from "@/lib/ai/textService";
+import { generateImage } from "@/lib/ai/imageService";
 import { computeNextSlots } from "@/lib/services/scheduling";
 
 export interface GenerationRequest {
@@ -13,6 +14,10 @@ export interface GenerationRequest {
   source?: string;
   /** Posts die via cron/auto-fill ontstaan krijgen status PENDING_APPROVAL i.p.v. DRAFT */
   markPendingApproval?: boolean;
+  /** Volledig automatische modus: post direct goedkeuren (geen handmatige controle) */
+  autoApprove?: boolean;
+  /** Direct na het genereren ook de afbeelding maken (nodig voor autonome publicatie) */
+  generateImages?: boolean;
 }
 
 /**
@@ -65,6 +70,12 @@ export async function generatePosts(request: GenerationRequest): Promise<Post[]>
     });
 
     const scheduledAt = slots[i] ?? null;
+    const status = request.autoApprove
+      ? "APPROVED"
+      : request.markPendingApproval
+        ? "PENDING_APPROVAL"
+        : "DRAFT";
+
     const data: Prisma.PostCreateInput = {
       user: { connect: { id: userId } },
       title: output.title,
@@ -72,7 +83,8 @@ export async function generatePosts(request: GenerationRequest): Promise<Post[]>
       body: output.body,
       cta: output.cta,
       hashtags: output.hashtags,
-      status: request.markPendingApproval ? "PENDING_APPROVAL" : "DRAFT",
+      status,
+      approvedAt: request.autoApprove ? new Date() : null,
       sourceType: request.sourceType,
       topic: request.topic ?? null,
       productIds: selectedProducts.map((p) => p.id),
@@ -95,10 +107,53 @@ export async function generatePosts(request: GenerationRequest): Promise<Post[]>
         data: { userId, postId: post.id, plannedAt: scheduledAt, source: request.source ?? "manual" },
       });
     }
+
+    if (request.generateImages) {
+      await generateImageForPost(post.id, output.imagePrompt);
+    }
+
     created.push(post);
   }
 
   return created;
+}
+
+/**
+ * Genereert de afbeelding voor een post en werkt de status bij. Faalt stil
+ * (met logging in het image-record) zodat een mislukte afbeelding het
+ * genereren van posts nooit blokkeert; de publicatie-cron probeert het later
+ * opnieuw.
+ */
+export async function generateImageForPost(postId: string, imagePrompt: string): Promise<boolean> {
+  try {
+    await prisma.postImage.update({
+      where: { postId },
+      data: { imageStatus: "GENERATING", errorMessage: null },
+    });
+    const result = await generateImage(imagePrompt, postId);
+    await prisma.postImage.update({
+      where: { postId },
+      data: {
+        imageUrl: result.url,
+        imageProvider: result.provider,
+        imageStatus: "COMPLETED",
+        generatedAt: new Date(),
+        errorMessage: null,
+      },
+    });
+    return true;
+  } catch (err) {
+    await prisma.postImage
+      .update({
+        where: { postId },
+        data: {
+          imageStatus: "FAILED",
+          errorMessage: err instanceof Error ? err.message : String(err),
+        },
+      })
+      .catch(() => undefined);
+    return false;
+  }
 }
 
 /**
@@ -118,7 +173,11 @@ export async function fillCalendar(userId: string, source: "auto-fill" | "cron")
     },
   });
   const target = Math.floor(settings.planAheadDays / Math.max(settings.frequencyDays, 1));
-  const needed = Math.max(0, target - scheduledCount);
+  // Begrens het aantal posts per run: met beeldgeneratie erbij (autonome modus)
+  // kost één post al snel een minuut, en serverless functies hebben een
+  // maximale looptijd. De dagelijkse cron vult het tekort in een paar runs aan.
+  const perRunCap = settings.autoApprove ? 2 : 5;
+  const needed = Math.min(Math.max(0, target - scheduledCount), perRunCap);
   if (needed === 0) return [];
 
   const activeProducts = await prisma.product.findMany({ where: { userId, active: true } });
@@ -151,6 +210,11 @@ export async function fillCalendar(userId: string, source: "auto-fill" | "cron")
       count: 1,
       source,
       markPendingApproval: true,
+      // Volledig automatische modus: direct goedkeuren en de afbeelding
+      // meteen genereren, zodat de publicatie-cron ze zonder tussenkomst
+      // kan plaatsen.
+      autoApprove: settings.autoApprove,
+      generateImages: settings.autoApprove,
     });
     created.push(...posts);
   }

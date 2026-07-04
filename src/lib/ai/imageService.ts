@@ -11,7 +11,9 @@ const PRIMARY_MODEL = process.env.OPENAI_IMAGE_MODEL || "gpt-image-1";
 const FALLBACK_MODEL = "dall-e-3";
 
 function isServerless(): boolean {
-  return Boolean(process.env.VERCEL) || process.env.NODE_ENV === "production";
+  // Alleen op Vercel is het filesystem niet schrijfbaar; een lokale
+  // productie-build (next start) kan gewoon naar public/uploads schrijven.
+  return Boolean(process.env.VERCEL);
 }
 
 /**
@@ -123,11 +125,20 @@ function isModelAccessError(err: unknown): boolean {
 async function persistImage(buffer: Buffer, filename: string): Promise<string> {
   if (process.env.BLOB_READ_WRITE_TOKEN) {
     const { put } = await import("@vercel/blob");
-    const blob = await put(`uploads/${filename}`, buffer, {
-      access: "public",
-      contentType: "image/png",
-    });
-    return blob.url;
+    const pathname = `uploads/${filename}`;
+
+    // Publieke store: directe publieke URL.
+    try {
+      const blob = await put(pathname, buffer, { access: "public", contentType: "image/png" });
+      return blob.url;
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      if (!message.toLowerCase().includes("private")) throw err;
+    }
+
+    // Private store: privé opslaan en serveren via onze eigen image-route.
+    await put(pathname, buffer, { access: "private", contentType: "image/png" });
+    return `/api/images/${pathname}`;
   }
 
   // Lokale fallback (alleen voor lokaal draaien).

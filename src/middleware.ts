@@ -8,6 +8,6 @@ export { default } from "next-auth/middleware";
  */
 export const config = {
   matcher: [
-    "/((?!api/auth|api/register|api/cron|api/extension|login|register|_next/static|_next/image|favicon.ico|uploads).*)",
+    "/((?!api/auth|api/register|api/cron|api/extension|api/images|login|register|_next/static|_next/image|favicon.ico|uploads).*)",
   ],
 };

@@ -54,6 +54,7 @@ export const contentSettingsSchema = z.object({
   hashtagCount: z.coerce.number().int().min(0).max(10),
   defaultCta: z.string().min(3),
   autoGenerate: z.boolean(),
+  autoApprove: z.boolean().default(false),
   autoPublish: z.boolean(),
   planAheadDays: z.coerce.number().int().min(7).max(90),
 });

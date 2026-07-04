@@ -34,7 +34,10 @@ export async function GET(request: Request) {
       },
     },
     select: { id: true, userId: true },
-    take: 20,
+    // Beperkt per run: publicatie kan per post een afbeeldingsgeneratie en
+    // -upload omvatten; de dagelijkse cron werkt een eventuele achterstand
+    // in volgende runs weg.
+    take: 5,
   });
 
   const results: { postId: string; success: boolean; message: string }[] = [];

@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import { publishPost } from "@/lib/services/linkedin/linkedinPublishService";
+import { generateImageForPost } from "@/lib/services/postGeneration";
 
 /**
  * Publicatieservice met de goedkeuringsgarantie van de applicatie:
@@ -10,7 +11,7 @@ export async function publishApprovedPost(
   userId: string,
   postId: string,
 ): Promise<{ success: boolean; message: string }> {
-  const post = await prisma.post.findFirst({ where: { id: postId, userId } });
+  let post = await prisma.post.findFirst({ where: { id: postId, userId }, include: { image: true } });
   if (!post) return { success: false, message: "Post niet gevonden." };
 
   if (post.status !== "APPROVED") {
@@ -24,6 +25,14 @@ export async function publishApprovedPost(
       },
     });
     return { success: false, message: "Alleen goedgekeurde posts kunnen worden gepubliceerd." };
+  }
+
+  // Ontbreekt de afbeelding nog (bijv. eerdere generatie mislukt), probeer hem
+  // vlak voor publicatie alsnog te maken zodat de post mét beeld live gaat.
+  if (post.image && post.image.imageStatus !== "COMPLETED" && post.image.imagePrompt) {
+    await generateImageForPost(post.id, post.image.imagePrompt);
+    post = await prisma.post.findFirst({ where: { id: postId, userId }, include: { image: true } });
+    if (!post) return { success: false, message: "Post niet gevonden." };
   }
 
   const account = await prisma.integrationAccount.findUnique({

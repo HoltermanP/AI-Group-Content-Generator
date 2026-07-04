@@ -119,7 +119,7 @@ function stubImagePrompt(postBody: string, companyName: string): string {
   return (
     `Photorealistic professional photo, Dutch business setting: a tidy modern workplace with a laptop showing a clean dashboard, ` +
     `printed documents and a notebook on the desk, soft natural window light, shallow depth of field, shot on a 50mm lens. ` +
-    `No recognizable faces, no people in focus, no robots, no holograms. Subtle "${companyName}" text on a notebook cover. ` +
+    `No people anywhere in the frame, no faces, no robots, no holograms. Subtle "${companyName}" text on a notebook cover. ` +
     `Theme related to: ${firstLine}`
   );
 }

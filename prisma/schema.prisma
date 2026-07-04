@@ -92,6 +92,7 @@ model ContentSettings {
   hashtagCount         Int      @default(3)
   defaultCta           String   @default("Bekijk meer op www.ai-group.nl")
   autoGenerate         Boolean  @default(false) // automatisch nieuwe conceptposts genereren
+  autoApprove          Boolean  @default(false) // automatisch gegenereerde posts direct goedkeuren (volledig automatische modus)
   autoPublish          Boolean  @default(false) // automatisch publiceren ná goedkeuring
   planAheadDays        Int      @default(14) // hoeveel dagen vooruit plannen
   createdAt            DateTime @default(now())

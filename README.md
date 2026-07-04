@@ -143,6 +143,22 @@ is per direct intrekbaar.
   werken: tekst kopiëren, afbeelding downloaden, LinkedIn openen, instructies volgen.
 - Tokens worden alleen server-side opgeslagen en nooit naar de browser gestuurd.
 
+## Volledig automatische modus
+
+Onder **Contentinstellingen** zit één schakelaar "Volledig automatische modus". Staat die aan, dan:
+
+1. genereert de dagelijkse cron nieuwe posts volgens de ingestelde frequentie (toegankelijke stijl,
+   afgedwongen in de promptservice: B1-taalniveau, geen jargon, geen managementtaal, geen AI-taal);
+2. wordt bij elke post direct een fotorealistische afbeelding gegenereerd (contextueel, zonder mensen
+   of gezichten in beeld);
+3. worden posts automatisch goedgekeurd;
+4. publiceert de publicatie-cron ze op het geplande moment via de officiële LinkedIn API,
+   **inclusief afbeelding** (LinkedIn Assets-upload).
+
+Vereist: een actieve LinkedIn-koppeling (Instellingen → Integraties). De gebruiker hoeft daarna alleen
+nog de publicatiefrequentie in te stellen. Zonder de schakelaar blijft de goedkeuringsflow gelden:
+er wordt nooit gepubliceerd zonder expliciet akkoord.
+
 ## Automatische generatie (cron)
 
 - `GET /api/cron/generate-posts` — genereert conceptposts (status *wacht op goedkeuring*) voor gebruikers

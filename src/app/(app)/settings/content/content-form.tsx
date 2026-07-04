@@ -26,6 +26,7 @@ const DEFAULTS: ContentSettingsInput = {
   hashtagCount: 3,
   defaultCta: "Bekijk meer op www.ai-group.nl",
   autoGenerate: false,
+  autoApprove: false,
   autoPublish: false,
   planAheadDays: 14,
 };
@@ -36,11 +37,21 @@ export function ContentSettingsForm({ initialData }: { initialData: ContentSetti
     register,
     handleSubmit,
     control,
+    watch,
+    setValue,
     formState: { errors, isSubmitting },
   } = useForm<ContentSettingsInput>({
     resolver: zodResolver(contentSettingsSchema),
     defaultValues: initialData ?? DEFAULTS,
   });
+
+  const fullyAutomatic = watch("autoGenerate") && watch("autoApprove") && watch("autoPublish");
+
+  function setFullyAutomatic(on: boolean) {
+    setValue("autoGenerate", on, { shouldDirty: true });
+    setValue("autoApprove", on, { shouldDirty: true });
+    setValue("autoPublish", on, { shouldDirty: true });
+  }
 
   async function onSubmit(data: ContentSettingsInput) {
     const response = await fetch("/api/content-settings", {
@@ -59,6 +70,31 @@ export function ContentSettingsForm({ initialData }: { initialData: ContentSetti
 
   return (
     <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
+      <Card className={fullyAutomatic ? "border-emerald-300 bg-emerald-50/50" : undefined}>
+        <CardHeader>
+          <CardTitle>Volledig automatische modus</CardTitle>
+          <CardDescription>
+            De app genereert posts volgens jouw frequentie, maakt er een fotorealistische afbeelding bij,
+            keurt ze automatisch goed en publiceert ze op het geplande moment via de LinkedIn-koppeling.
+            Jij hoeft alleen de frequentie hieronder in te stellen.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="flex items-center justify-between rounded-md border bg-card p-4">
+            <div>
+              <p className="text-sm font-medium">
+                {fullyAutomatic ? "Aan — de app plaatst zelfstandig posts" : "Uit — posts wachten op jouw goedkeuring"}
+              </p>
+              <p className="text-xs text-muted-foreground">
+                Vereist een actieve LinkedIn-koppeling (Instellingen → Integraties). Je kunt elke post
+                achteraf terugzien onder Posts.
+              </p>
+            </div>
+            <Switch checked={fullyAutomatic} onCheckedChange={setFullyAutomatic} />
+          </div>
+        </CardContent>
+      </Card>
+
       <Card>
         <CardHeader>
           <CardTitle>Publicatieritme</CardTitle>
@@ -184,10 +220,10 @@ export function ContentSettingsForm({ initialData }: { initialData: ContentSetti
 
       <Card>
         <CardHeader>
-          <CardTitle>Automatisering</CardTitle>
+          <CardTitle>Automatisering (losse instellingen)</CardTitle>
           <CardDescription>
-            Posts worden nooit gepubliceerd zonder jouw expliciete goedkeuring, ook niet met automatische
-            publicatie aan.
+            De drie stappen achter de automatische modus, ook los in te stellen. Zonder &quot;Automatisch
+            goedkeuren&quot; wordt er nooit gepubliceerd zonder jouw expliciete akkoord.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-3">
@@ -200,6 +236,21 @@ export function ContentSettingsForm({ initialData }: { initialData: ContentSetti
                   <p className="text-sm font-medium">Automatisch nieuwe conceptposts genereren</p>
                   <p className="text-xs text-muted-foreground">
                     De achtergrondtaak vult de kalender aan als er onvoldoende geplande posts zijn.
+                  </p>
+                </div>
+                <Switch checked={field.value} onCheckedChange={field.onChange} />
+              </div>
+            )}
+          />
+          <Controller
+            control={control}
+            name="autoApprove"
+            render={({ field }) => (
+              <div className="flex items-center justify-between rounded-md border p-3">
+                <div>
+                  <p className="text-sm font-medium">Automatisch goedkeuren</p>
+                  <p className="text-xs text-muted-foreground">
+                    Automatisch gegenereerde posts worden direct goedgekeurd, zonder handmatige controle.
                   </p>
                 </div>
                 <Switch checked={field.value} onCheckedChange={field.onChange} />

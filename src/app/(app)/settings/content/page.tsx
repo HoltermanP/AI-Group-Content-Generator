@@ -31,6 +31,7 @@ export default async function ContentSettingsPage() {
                 hashtagCount: settings.hashtagCount,
                 defaultCta: settings.defaultCta,
                 autoGenerate: settings.autoGenerate,
+                autoApprove: settings.autoApprove,
                 autoPublish: settings.autoPublish,
                 planAheadDays: settings.planAheadDays,
               }
