@@ -1,7 +1,7 @@
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { isLinkedInConfigured } from "@/lib/services/linkedin/linkedinAuthService";
+import { isLinkedInConfigured, getRedirectUri } from "@/lib/services/linkedin/linkedinAuthService";
 import { IntegrationsClient } from "./integrations-client";
 
 export default async function IntegrationsPage() {
@@ -25,6 +25,7 @@ export default async function IntegrationsPage() {
   return (
     <IntegrationsClient
       configured={isLinkedInConfigured()}
+      redirectUri={getRedirectUri()}
       hasExtensionToken={Boolean(user?.extensionTokenHash)}
       account={
         account

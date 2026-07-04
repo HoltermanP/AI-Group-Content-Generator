@@ -28,8 +28,13 @@ export function isLinkedInConfigured(): boolean {
   return Boolean(process.env.LINKEDIN_CLIENT_ID && process.env.LINKEDIN_CLIENT_SECRET);
 }
 
-function redirectUri(): string {
-  const base = process.env.NEXTAUTH_URL || "http://localhost:3000";
+/**
+ * De redirect-URL die LinkedIn exact geregistreerd moet hebben. Gebaseerd op
+ * NEXTAUTH_URL, zodat lokaal en productie elk hun eigen (geregistreerde) URL
+ * gebruiken.
+ */
+export function getRedirectUri(): string {
+  const base = (process.env.NEXTAUTH_URL || "http://localhost:3000").replace(/\/+$/, "");
   return `${base}/api/integrations/linkedin/callback`;
 }
 
@@ -38,7 +43,7 @@ export function getAuthorizationUrl(state: string): string {
   const params = new URLSearchParams({
     response_type: "code",
     client_id: process.env.LINKEDIN_CLIENT_ID ?? "",
-    redirect_uri: redirectUri(),
+    redirect_uri: getRedirectUri(),
     scope: "openid profile w_member_social",
     state,
   });
@@ -55,7 +60,7 @@ export async function exchangeCodeForTokens(code: string): Promise<LinkedInToken
       code,
       client_id: process.env.LINKEDIN_CLIENT_ID ?? "",
       client_secret: process.env.LINKEDIN_CLIENT_SECRET ?? "",
-      redirect_uri: redirectUri(),
+      redirect_uri: getRedirectUri(),
     }),
   });
   if (!response.ok) {

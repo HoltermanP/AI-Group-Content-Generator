@@ -26,11 +26,13 @@ interface LastPublishedPost {
 
 export function IntegrationsClient({
   configured,
+  redirectUri,
   hasExtensionToken,
   account,
   lastPublishedPost,
 }: {
   configured: boolean;
+  redirectUri: string;
   hasExtensionToken: boolean;
   account: AccountStatus | null;
   lastPublishedPost: LastPublishedPost | null;
@@ -215,6 +217,34 @@ export function IntegrationsClient({
               <code>LINKEDIN_CLIENT_SECRET</code> in (zie <code>.env.example</code>). Tot die tijd werkt de
               handmatige publicatieflow: tekst kopiëren, afbeelding downloaden en zelf plaatsen.
             </p>
+          )}
+
+          {!(connected && !tokenExpired) && (
+            <div className="space-y-2 rounded-md border p-3 text-sm">
+              <p className="font-medium">Redirect-URL voor je LinkedIn-app</p>
+              <p className="text-muted-foreground">
+                Registreer <strong>exact</strong> deze URL in je LinkedIn Developer-app onder Auth →
+                &quot;Authorized redirect URLs&quot; (elk teken telt, ook http/https en slashes):
+              </p>
+              <div className="flex items-center gap-2">
+                <code className="flex-1 overflow-x-auto rounded bg-muted px-2 py-1.5 text-xs">{redirectUri}</code>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={async () => {
+                    await navigator.clipboard.writeText(redirectUri);
+                    toast.success("Redirect-URL gekopieerd.");
+                  }}
+                >
+                  <Copy className="h-4 w-4" />
+                </Button>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Koppel je zowel lokaal als op productie? Registreer dan beide URL&apos;s (localhost én je
+                productiedomein) in de LinkedIn-app.
+              </p>
+            </div>
           )}
 
           <div className="flex flex-wrap gap-2">
