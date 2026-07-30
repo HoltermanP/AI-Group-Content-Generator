@@ -115,14 +115,13 @@ function stubPost(ctx: PostGenerationContext): GeneratedPostOutput {
 }
 
 const STUB_SCENES = [
-  "a technician's hands adjusting equipment in a workshop, no people's heads or faces anywhere in the frame",
-  "a small team gathered around a whiteboard, shot from directly behind so only backs and shoulders are visible, heads cropped out of frame",
-  "a warehouse aisle with shelving and a handheld scanner on a cart, workers visible only as distant, small figures too far away for any facial detail, aerial/wide-angle viewpoint",
-  "a construction site at golden hour, close-up on a worker's gloved hands and a tool, the rest of the person entirely out of frame",
-  "a server room corridor with a technician's hand on a rack panel, no other people in the frame",
-  "a healthcare setting with hands adjusting equipment on a cart, no faces or heads visible anywhere",
-  "a delivery van parked on a street with the back doors open and packages being loaded, hands and torso only, head out of frame",
-  "a retail shop floor with shelving and a handheld terminal on the counter, no people visible",
+  "a technician working on equipment in a workshop, seen from the side with face turned toward the work, not toward the camera",
+  "a single worker at a construction site, at a middle distance, face not clearly visible due to distance and angle",
+  "a warehouse worker checking a handheld scanner, photographed from a three-quarter back angle so the face is only partially visible",
+  "a technician in a server room working on a rack panel, face turned away from the camera toward the equipment",
+  "a healthcare worker adjusting equipment on a cart, photographed from the side with attention on the task rather than the camera",
+  "a delivery driver loading packages from a van, photographed at a slight distance with the face turned down toward the boxes",
+  "a shop employee restocking shelves, photographed from behind at an angle so the face is not clearly visible",
 ];
 
 function stubImagePrompt(postBody: string, companyName: string): string {
@@ -130,8 +129,8 @@ function stubImagePrompt(postBody: string, companyName: string): string {
   const scene = STUB_SCENES[Math.floor(Math.random() * STUB_SCENES.length)];
   return (
     `Photorealistic professional photo, Dutch business setting: ${scene}, matching the practice described in the post. ` +
-    `Soft natural light, shallow depth of field, shot on a 35mm lens. Strictly no faces anywhere in the image, not even ` +
-    `partial, blurred, silhouetted, or in the background. No robots, no holograms. The text "${companyName}" is clearly ` +
+    `Soft natural light, shallow depth of field, shot on a 35mm lens. At most one person in frame, no crowds. No clear, ` +
+    `sharp, camera-facing close-up of a face. No robots, no holograms. The text "${companyName}" is clearly ` +
     `visible somewhere in the frame (e.g. on a sign, sticker, or workwear). Theme related to: ${firstLine}`
   );
 }
