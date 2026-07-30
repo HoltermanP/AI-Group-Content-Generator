@@ -115,21 +115,23 @@ function stubPost(ctx: PostGenerationContext): GeneratedPostOutput {
 }
 
 const STUB_SCENES = [
-  "a technician's hands adjusting equipment in a workshop, a colleague working blurred in the background, no faces visible",
-  "a small team gathered around a whiteboard, seen from behind, backs and shoulders only, no faces in frame",
-  "a warehouse aisle with a worker in silhouette checking a handheld scanner, face turned away from camera",
-  "a construction site at golden hour, a worker's torso and hands with a tool, face out of frame",
-  "a server room corridor with a technician's hand on a rack panel, colleague blurred in the far background",
-  "a modern workplace with a laptop showing a clean dashboard and printed documents on the desk, a person's hands typing, face not visible",
+  "a technician's hands adjusting equipment in a workshop, no people's heads or faces anywhere in the frame",
+  "a small team gathered around a whiteboard, shot from directly behind so only backs and shoulders are visible, heads cropped out of frame",
+  "a warehouse aisle with shelving and a handheld scanner on a cart, workers visible only as distant, small figures too far away for any facial detail, aerial/wide-angle viewpoint",
+  "a construction site at golden hour, close-up on a worker's gloved hands and a tool, the rest of the person entirely out of frame",
+  "a server room corridor with a technician's hand on a rack panel, no other people in the frame",
+  "a healthcare setting with hands adjusting equipment on a cart, no faces or heads visible anywhere",
+  "a delivery van parked on a street with the back doors open and packages being loaded, hands and torso only, head out of frame",
+  "a retail shop floor with shelving and a handheld terminal on the counter, no people visible",
 ];
 
 function stubImagePrompt(postBody: string, companyName: string): string {
-  const firstLine = postBody.split("\n")[0]?.slice(0, 120) ?? "a modern office desk";
+  const firstLine = postBody.split("\n")[0]?.slice(0, 120) ?? "a workplace";
   const scene = STUB_SCENES[Math.floor(Math.random() * STUB_SCENES.length)];
   return (
     `Photorealistic professional photo, Dutch business setting: ${scene}, matching the practice described in the post. ` +
-    `Soft natural light, shallow depth of field, shot on a 35mm lens. People may be visible but never recognizable: ` +
-    `no clear or in-focus faces. No robots, no holograms. The text "${companyName}" is clearly visible somewhere in the frame ` +
-    `(e.g. on a sign, sticker, or workwear). Theme related to: ${firstLine}`
+    `Soft natural light, shallow depth of field, shot on a 35mm lens. Strictly no faces anywhere in the image, not even ` +
+    `partial, blurred, silhouetted, or in the background. No robots, no holograms. The text "${companyName}" is clearly ` +
+    `visible somewhere in the frame (e.g. on a sign, sticker, or workwear). Theme related to: ${firstLine}`
   );
 }

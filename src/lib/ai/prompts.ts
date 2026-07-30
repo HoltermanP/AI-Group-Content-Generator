@@ -57,11 +57,11 @@ EISEN AAN ELKE POST:
 
 EISEN AAN DE AFBEELDINGPROMPT (imagePrompt, in het Engels):
 - Fotorealistische professionele foto, zakelijke Nederlandse/Europese setting. Moet aanvoelen als een echte foto, niet als AI-beeld.
-- Varieer de omgeving per post en laat die aansluiten bij de daadwerkelijke praktijk uit de post: bijvoorbeeld een werkplaats, bouwplaats, magazijn, zorglocatie, winkel, buitenwerk, serverruimte, vergaderruimte, productielijn, laboratorium of ander relevant decor — kies wat logisch bij het onderwerp past. Gebruik niet standaard een kantoor met een laptop en documenten; alleen als dat echt bij het onderwerp past.
-- Mensen mogen zichtbaar zijn, zolang ze niet herkenbaar zijn: bijvoorbeeld van achteren, torso/handen in beeld zonder gezicht, silhouet tegen het licht, onscherp/uit focus op de achtergrond, of ingezoomd op handen met gereedschap of toetsenbord. Nooit een scherp of herkenbaar gezicht in beeld.
+- STRIKT VERBODEN: gezichten. Geen enkel gezicht mag zichtbaar zijn, ook niet gedeeltelijk, van opzij, onscherp, in silhouet of op de achtergrond. Beschrijf mensen — als ze voorkomen — alleen via lichaamsdelen waar geen gezicht bij te zien is: handen, rug, schouders vanaf achteren met het hoofd buiten beeld, of een extreem groothoek-/luchtfoto-standpunt waarbij personen te klein en te ver weg zijn om enig gezicht te herkennen. Benoem expliciet in de prompt dat het hoofd/gezicht buiten beeld valt of dat er geen mensen in beeld zijn. Twijfel je? Laat mensen dan helemaal weg en focus op de werkomgeving, gereedschap en objecten.
+- Varieer de omgeving per post en laat die aansluiten bij de daadwerkelijke praktijk uit de post: gebruik concrete details uit het onderwerp (bijv. werkplaats, bouwplaats, magazijn, zorglocatie, winkel, buitenwerk, technische installatie, serverruimte, productielijn, laboratorium, voertuig onderweg). Een kantoor met laptop en documenten is NIET de standaardkeuze en mag alleen als het onderwerp expliciet over kantoorwerk, administratie of software gaat.
 - Duidelijke visuele link met het onderwerp van de post: de kijker moet zonder de tekst kunnen raden waar de post over gaat.
 - Geen robots, geen zwevende hologrammen, geen gloeiende blauwe hersenen, geen overduidelijke AI-symboliek.
-- De tekst "AI-Group" moet altijd ergens duidelijk zichtbaar in beeld staan, subtiel en natuurlijk verwerkt (bijv. op een laptopsticker, bordje, werkkleding, beeldscherm of notitieboek) — laat dit nooit weg. Verder geen grote hoeveelheden tekst in beeld.
+- De tekst "AI-Group" moet altijd ergens duidelijk zichtbaar in beeld staan, subtiel en natuurlijk verwerkt (bijv. op een sticker, bordje, werkkleding, beeldscherm of notitieboek) — laat dit nooit weg. Verder geen grote hoeveelheden tekst in beeld.
 - Beschrijf camera-instelling en licht (bijv. 35mm, natuurlijk daglicht, kleine scherptediepte) voor een natuurlijk resultaat.
 
 OUTPUT:
@@ -140,8 +140,8 @@ export function buildImagePromptInstruction(postBody: string, companyName: strin
 De afbeelding moet:
 - fotorealistisch en professioneel zijn, als een echte zakelijke foto (niet herkenbaar als AI-beeld);
 - passen bij een zakelijke Nederlandse/Europese context;
-- een omgeving tonen die aansluit bij de daadwerkelijke praktijk uit de post (bijv. werkplaats, bouwplaats, magazijn, zorglocatie, winkel, buitenwerk, serverruimte, vergaderruimte, productielijn, laboratorium — niet standaard een kantoor met laptop, tenzij dat echt past);
-- mensen mogen zichtbaar zijn zolang ze niet herkenbaar zijn: bijv. van achteren, torso/handen zonder gezicht, silhouet, onscherp op de achtergrond, of ingezoomd op handen met gereedschap/toetsenbord — nooit een scherp of herkenbaar gezicht;
+- een omgeving tonen die aansluit bij de daadwerkelijke praktijk uit de post, met concrete details uit het onderwerp (bijv. werkplaats, bouwplaats, magazijn, zorglocatie, winkel, buitenwerk, technische installatie, serverruimte, productielijn, laboratorium, voertuig onderweg). Een kantoor met laptop is NIET de standaardkeuze en mag alleen als het onderwerp echt over kantoorwerk, administratie of software gaat;
+- STRIKT VERBODEN: gezichten. Geen enkel gezicht zichtbaar, ook niet gedeeltelijk, van opzij, onscherp of op de achtergrond. Mensen mogen alleen voorkomen via handen, rug of schouders met het hoofd buiten beeld, of als kleine figuren op grote afstand (extreme groothoek/luchtfoto) waarbij geen gezicht te onderscheiden is. Benoem expliciet dat het hoofd/gezicht buiten beeld valt. Bij twijfel: laat mensen volledig weg en focus op omgeving, gereedschap en objecten;
 - duidelijk visueel verwijzen naar het onderwerp van de post, zodat de kijker zonder tekst kan raden waar de post over gaat;
 - geen robots, hologrammen of overduidelijke AI-symboliek bevatten;
 - altijd de tekst "${companyName}" duidelijk zichtbaar en subtiel verwerkt bevatten (bijv. op een sticker, bordje, werkkleding of scherm) — nooit weglaten; verder geen grote hoeveelheden tekst;
