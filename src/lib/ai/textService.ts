@@ -114,12 +114,22 @@ function stubPost(ctx: PostGenerationContext): GeneratedPostOutput {
   };
 }
 
+const STUB_SCENES = [
+  "a technician's hands adjusting equipment in a workshop, a colleague working blurred in the background, no faces visible",
+  "a small team gathered around a whiteboard, seen from behind, backs and shoulders only, no faces in frame",
+  "a warehouse aisle with a worker in silhouette checking a handheld scanner, face turned away from camera",
+  "a construction site at golden hour, a worker's torso and hands with a tool, face out of frame",
+  "a server room corridor with a technician's hand on a rack panel, colleague blurred in the far background",
+  "a modern workplace with a laptop showing a clean dashboard and printed documents on the desk, a person's hands typing, face not visible",
+];
+
 function stubImagePrompt(postBody: string, companyName: string): string {
   const firstLine = postBody.split("\n")[0]?.slice(0, 120) ?? "a modern office desk";
+  const scene = STUB_SCENES[Math.floor(Math.random() * STUB_SCENES.length)];
   return (
-    `Photorealistic professional photo, Dutch business setting: a tidy modern workplace with a laptop showing a clean dashboard, ` +
-    `printed documents and a notebook on the desk, soft natural window light, shallow depth of field, shot on a 50mm lens. ` +
-    `No people anywhere in the frame, no faces, no robots, no holograms. Subtle "${companyName}" text on a notebook cover. ` +
-    `Theme related to: ${firstLine}`
+    `Photorealistic professional photo, Dutch business setting: ${scene}, matching the practice described in the post. ` +
+    `Soft natural light, shallow depth of field, shot on a 35mm lens. People may be visible but never recognizable: ` +
+    `no clear or in-focus faces. No robots, no holograms. The text "${companyName}" is clearly visible somewhere in the frame ` +
+    `(e.g. on a sign, sticker, or workwear). Theme related to: ${firstLine}`
   );
 }

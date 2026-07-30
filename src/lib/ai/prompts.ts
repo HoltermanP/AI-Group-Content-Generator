@@ -39,6 +39,12 @@ VERPLICHTE OPBOUW (structuur van de body):
 2. Daarna 2 tot 4 korte alinea's van maximaal 2 zinnen, ALTIJD gescheiden door een witregel (\\n\\n). Nooit één doorlopend tekstblok.
 3. Afsluiten met de CTA op een eigen regel.
 
+VARIATIE (verplicht — voorkom dat posts op elkaar gaan lijken):
+- Kies bewust een invalshoek voor de openingszin en wissel actief af ten opzichte van eerdere posts: bijvoorbeeld een concrete vraag, een korte anekdote of situatie, een opvallend getal of feit, een herkenbare frustratie, of een kort stukje dialoog. Herhaal niet dezelfde invalshoek als de meest recente post(s) hieronder.
+- Varieer de toon binnen de tone of voice: niet elke post hoeft even enthousiast, luchtig of serieus te zijn.
+- Bedenk elke keer een eigen CTA-formulering; kopieer nooit letterlijk de CTA-zin van een eerdere post.
+- Varieer het aantal alinea's (2 tot 4) en de lengte ervan per post.
+
 EISEN AAN ELKE POST:
 - ${lengthInstruction}
 - Stijl: ${settings.style}. Schrijfstijl: ${profile.writingStyle}
@@ -51,11 +57,11 @@ EISEN AAN ELKE POST:
 
 EISEN AAN DE AFBEELDINGPROMPT (imagePrompt, in het Engels):
 - Fotorealistische professionele foto, zakelijke Nederlandse/Europese setting. Moet aanvoelen als een echte foto, niet als AI-beeld.
-- GEEN mensen in beeld. Geen gezichten, ook niet op de achtergrond, niet van opzij en niet onscherp. Hooguit handen bij een toetsenbord of gereedschap, als het echt nodig is.
-- Werk met objecten, werkplekken, laptops, documenten, dashboards, infrastructuur, bouwplaatsen, kabels/leidingen, projectomgevingen of abstracte zakelijke situaties.
+- Varieer de omgeving per post en laat die aansluiten bij de daadwerkelijke praktijk uit de post: bijvoorbeeld een werkplaats, bouwplaats, magazijn, zorglocatie, winkel, buitenwerk, serverruimte, vergaderruimte, productielijn, laboratorium of ander relevant decor — kies wat logisch bij het onderwerp past. Gebruik niet standaard een kantoor met een laptop en documenten; alleen als dat echt bij het onderwerp past.
+- Mensen mogen zichtbaar zijn, zolang ze niet herkenbaar zijn: bijvoorbeeld van achteren, torso/handen in beeld zonder gezicht, silhouet tegen het licht, onscherp/uit focus op de achtergrond, of ingezoomd op handen met gereedschap of toetsenbord. Nooit een scherp of herkenbaar gezicht in beeld.
 - Duidelijke visuele link met het onderwerp van de post: de kijker moet zonder de tekst kunnen raden waar de post over gaat.
 - Geen robots, geen zwevende hologrammen, geen gloeiende blauwe hersenen, geen overduidelijke AI-symboliek.
-- Geen grote hoeveelheden tekst in beeld; hooguit subtiel "AI-Group" of een productnaam.
+- De tekst "AI-Group" moet altijd ergens duidelijk zichtbaar in beeld staan, subtiel en natuurlijk verwerkt (bijv. op een laptopsticker, bordje, werkkleding, beeldscherm of notitieboek) — laat dit nooit weg. Verder geen grote hoeveelheden tekst in beeld.
 - Beschrijf camera-instelling en licht (bijv. 35mm, natuurlijk daglicht, kleine scherptediepte) voor een natuurlijk resultaat.
 
 OUTPUT:
@@ -134,11 +140,11 @@ export function buildImagePromptInstruction(postBody: string, companyName: strin
 De afbeelding moet:
 - fotorealistisch en professioneel zijn, als een echte zakelijke foto (niet herkenbaar als AI-beeld);
 - passen bij een zakelijke Nederlandse/Europese context;
-- GEEN mensen tonen: geen gezichten, ook niet op de achtergrond of onscherp; hooguit handen bij een toetsenbord of gereedschap;
-- werken met objecten, werkplekken, laptops, documenten, dashboards, infrastructuur of projectomgevingen;
+- een omgeving tonen die aansluit bij de daadwerkelijke praktijk uit de post (bijv. werkplaats, bouwplaats, magazijn, zorglocatie, winkel, buitenwerk, serverruimte, vergaderruimte, productielijn, laboratorium — niet standaard een kantoor met laptop, tenzij dat echt past);
+- mensen mogen zichtbaar zijn zolang ze niet herkenbaar zijn: bijv. van achteren, torso/handen zonder gezicht, silhouet, onscherp op de achtergrond, of ingezoomd op handen met gereedschap/toetsenbord — nooit een scherp of herkenbaar gezicht;
 - duidelijk visueel verwijzen naar het onderwerp van de post, zodat de kijker zonder tekst kan raden waar de post over gaat;
 - geen robots, hologrammen of overduidelijke AI-symboliek bevatten;
-- geen grote hoeveelheden tekst bevatten (hooguit subtiel "${companyName}" of een productnaam);
+- altijd de tekst "${companyName}" duidelijk zichtbaar en subtiel verwerkt bevatten (bijv. op een sticker, bordje, werkkleding of scherm) — nooit weglaten; verder geen grote hoeveelheden tekst;
 - camera- en lichtbeschrijving bevatten voor een natuurlijk resultaat.
 
 DE POST:
