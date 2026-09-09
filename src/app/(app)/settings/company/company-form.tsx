@@ -5,7 +5,8 @@ import { useRouter } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { toast } from "sonner";
-import { Globe } from "lucide-react";
+import { Briefcase, ExternalLink, Globe } from "lucide-react";
+import { formatDateTime } from "@/lib/utils";
 import { companyProfileSchema, type CompanyProfileInput } from "@/lib/validations";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -27,15 +28,28 @@ const DEFAULTS: CompanyProfileInput = {
   defaultHashtags: "#AIGroup, #AI, #Procesverbetering",
 };
 
+interface WebsiteCaseRow {
+  id: string;
+  title: string;
+  sector: string | null;
+  resultLine: string | null;
+  url: string;
+  lastFetchedAt: string;
+  lastUsedAt: string | null;
+}
+
 export function CompanyProfileForm({
   initialData,
   websiteSummary,
+  websiteCases,
 }: {
   initialData: CompanyProfileInput | null;
   websiteSummary: string | null;
+  websiteCases: WebsiteCaseRow[];
 }) {
   const router = useRouter();
   const [refreshing, setRefreshing] = useState(false);
+  const [refreshingCases, setRefreshingCases] = useState(false);
   const {
     register,
     handleSubmit,
@@ -73,6 +87,22 @@ export function CompanyProfileForm({
       }
     } finally {
       setRefreshing(false);
+    }
+  }
+
+  async function refreshCases() {
+    setRefreshingCases(true);
+    try {
+      const response = await fetch("/api/company/cases", { method: "POST" });
+      const body = await response.json().catch(() => null);
+      if (response.ok && body?.ok) {
+        toast.success(`${body.cases.length} case(s) opgehaald van de website.`);
+        router.refresh();
+      } else {
+        toast.info(body?.error ?? "Geen cases gevonden op de website.");
+      }
+    } finally {
+      setRefreshingCases(false);
     }
   }
 
@@ -145,6 +175,55 @@ export function CompanyProfileForm({
           <Button type="button" variant="outline" onClick={refreshWebsiteSummary} disabled={refreshing}>
             <Globe className="h-4 w-4" />
             {refreshing ? "Bezig met ophalen..." : "Website ophalen en samenvatten"}
+          </Button>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Cases op de website</CardTitle>
+          <CardDescription>
+            Praktijkcases worden automatisch van de website gehaald en dienen als feitelijke bron voor
+            case-posts. Elke case-post linkt naar de case. De cron ververst deze lijst dagelijks.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {websiteCases.length === 0 ? (
+            <p className="text-sm text-muted-foreground">Nog geen cases opgehaald.</p>
+          ) : (
+            <ul className="divide-y rounded-md border text-sm">
+              {websiteCases.map((c) => (
+                <li key={c.id} className="flex flex-wrap items-start justify-between gap-2 p-3">
+                  <div className="min-w-0 flex-1">
+                    <p className="font-medium">
+                      {c.title}
+                      {c.sector && <span className="ml-2 text-xs font-normal text-muted-foreground">{c.sector}</span>}
+                    </p>
+                    {c.resultLine && <p className="text-xs text-muted-foreground">{c.resultLine}</p>}
+                    <p className="text-[11px] text-muted-foreground">
+                      {c.lastUsedAt ? `Laatste post: ${formatDateTime(c.lastUsedAt)}` : "Nog geen post over gemaakt"}
+                    </p>
+                  </div>
+                  <a
+                    href={c.url}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="inline-flex items-center gap-1 text-xs font-medium hover:underline"
+                  >
+                    Bekijk case <ExternalLink className="h-3 w-3" />
+                  </a>
+                </li>
+              ))}
+            </ul>
+          )}
+          {websiteCases[0] && (
+            <p className="text-xs text-muted-foreground">
+              Laatst opgehaald: {formatDateTime(websiteCases[0].lastFetchedAt)}
+            </p>
+          )}
+          <Button type="button" variant="outline" onClick={refreshCases} disabled={refreshingCases}>
+            <Briefcase className="h-4 w-4" />
+            {refreshingCases ? "Bezig met ophalen..." : "Cases ophalen van de website"}
           </Button>
         </CardContent>
       </Card>

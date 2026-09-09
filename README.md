@@ -189,7 +189,8 @@ er wordt nooit gepubliceerd zonder expliciet akkoord.
   laatste zes posts het minst voorkwam, en pakt daarbinnen de case die het langst niet aan bod kwam.
 - **Beeld**: de beeldprompt moet beginnen met de concrete werkomgeving van het onderwerp (sleuf met
   kabels, contracten op tafel, magazijnstellingen, bouwplaats bij natuurgebied, …), Nederlandse setting,
-  geen mensen, geen tekst, geen AI-symboliek. `imageService` voegt daar altijd vaste fotografische
+  hooguit 1 à 2 mensen zonder duidelijk gezicht, "AI-Group" subtiel in beeld, verder geen tekst en geen
+  AI-symboliek. `imageService` voegt daar altijd vaste fotografische
   randvoorwaarden aan toe en gebruikt `gpt-image-1` op kwaliteit `high` (instelbaar via
   `OPENAI_IMAGE_QUALITY`) met `dall-e-3` in stijl `natural`/`hd` als fallback.
 

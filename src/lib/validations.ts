@@ -68,6 +68,8 @@ export const generatePostSchema = z
     sourceType: z.enum(["COMPANY", "PRODUCT", "MULTI_PRODUCT", "FREE_TOPIC", "NEWS", "CASE"]),
     productIds: z.array(z.string()).default([]),
     topic: z.string().max(2000).optional(),
+    /** Case van de website (WebsiteCase.id) als bron voor een CASE-post. */
+    websiteCaseId: z.string().optional(),
     count: z.coerce.number().int().min(1).max(5).default(1),
   })
   .superRefine((data, ctx) => {
@@ -77,8 +79,15 @@ export const generatePostSchema = z
     if (data.sourceType === "MULTI_PRODUCT" && data.productIds.length < 2) {
       ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["productIds"], message: "Kies minimaal twee producten" });
     }
-    if (["FREE_TOPIC", "NEWS", "CASE"].includes(data.sourceType) && !data.topic?.trim()) {
+    if (["FREE_TOPIC", "NEWS"].includes(data.sourceType) && !data.topic?.trim()) {
       ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["topic"], message: "Vul een onderwerp in" });
+    }
+    if (data.sourceType === "CASE" && !data.topic?.trim() && !data.websiteCaseId) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["topic"],
+        message: "Kies een case van de website of beschrijf de case zelf",
+      });
     }
   });
 

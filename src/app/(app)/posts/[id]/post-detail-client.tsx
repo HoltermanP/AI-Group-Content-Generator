@@ -40,6 +40,8 @@ interface PostDetail {
   status: PostStatus;
   sourceType: PostSourceType;
   topic: string | null;
+  /** Link naar de bron (bijv. de case op de website) die in de post staat. */
+  sourceUrl: string | null;
   scheduledAt: string | null;
   approvedAt: string | null;
   publishedAt: string | null;
@@ -63,7 +65,14 @@ function toLocalInputValue(iso: string | null): string {
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
 }
 
-export function PostDetailClient({ post }: { post: PostDetail }) {
+export function PostDetailClient({
+  post,
+  linkedInOrganizationId,
+}: {
+  post: PostDetail;
+  /** Bedrijfspagina waarop gepubliceerd wordt; null = persoonlijk profiel. */
+  linkedInOrganizationId: string | null;
+}) {
   const router = useRouter();
   const [title, setTitle] = useState(post.title);
   const [body, setBody] = useState(post.body);
@@ -84,9 +93,20 @@ export function PostDetailClient({ post }: { post: PostDetail }) {
   }
 
   async function openInLinkedIn(text: string, imageUrl: string | null) {
-    const result = await publishPostToLinkedIn({ postId: post.id, text, imageUrl });
+    const result = await publishPostToLinkedIn({
+      postId: post.id,
+      text,
+      imageUrl,
+      organizationId: linkedInOrganizationId,
+    });
     setBrowserDialogOpen(true);
-    if (result.imageCopied) {
+    if (result.asOrganization) {
+      toast.success(
+        result.textCopied
+          ? "Bedrijfspagina geopend — posttekst staat op je klembord (Cmd+V in de composer)."
+          : "Bedrijfspagina geopend. Kopieer de tekst hieronder of gebruik de Chrome-extensie.",
+      );
+    } else if (result.imageCopied) {
       toast.success("LinkedIn geopend — afbeelding staat op je klembord (Cmd+V om te plakken).");
     } else if (imageUrl) {
       toast.info("LinkedIn geopend. Plak de afbeelding handmatig of installeer de Chrome-extensie.");
@@ -219,6 +239,16 @@ export function PostDetailClient({ post }: { post: PostDetail }) {
             {post.productNames.length > 0 && ` · ${post.productNames.join(", ")}`}
             {` · Aangemaakt ${formatDateTime(post.createdAt)}`}
           </p>
+          {post.sourceUrl && (
+            <a
+              href={post.sourceUrl}
+              target="_blank"
+              rel="noreferrer"
+              className="inline-flex items-center gap-1 text-sm font-medium hover:underline"
+            >
+              <ExternalLink className="h-3.5 w-3.5" /> Bron: {post.sourceUrl.replace(/^https?:\/\//, "")}
+            </a>
+          )}
         </div>
         <div className="flex flex-wrap gap-2">
           {post.status !== "PUBLISHED" && post.status !== "APPROVED" && (
@@ -240,7 +270,9 @@ export function PostDetailClient({ post }: { post: PostDetail }) {
         <Card className="border-emerald-200 bg-emerald-50">
           <CardContent className="space-y-3 py-4">
             <p className="text-sm font-medium text-emerald-900">
-              Deze post is goedgekeurd. Open LinkedIn om te publiceren op je ingelogde account.
+              {linkedInOrganizationId
+                ? "Deze post is goedgekeurd. Open de bedrijfspagina om te publiceren namens AI-Group."
+                : "Deze post is goedgekeurd. Open LinkedIn om te publiceren op je ingelogde account."}
             </p>
             <div className="flex flex-wrap gap-2">
               <Button onClick={publishToLinkedInBrowser} disabled={busy !== null}>
@@ -423,20 +455,38 @@ export function PostDetailClient({ post }: { post: PostDetail }) {
           <DialogHeader>
             <DialogTitle>Post plaatsen op LinkedIn</DialogTitle>
             <DialogDescription>
-              LinkedIn is geopend in een nieuw tabblad. Controleer tekst en afbeelding en klik op Posten.
+              {linkedInOrganizationId
+                ? "De beheerdersomgeving van de bedrijfspagina is geopend in een nieuw tabblad. Controleer tekst en afbeelding en klik op Posten."
+                : "LinkedIn is geopend in een nieuw tabblad. Controleer tekst en afbeelding en klik op Posten."}
             </DialogDescription>
           </DialogHeader>
-          <ol className="list-decimal space-y-2 pl-5 text-sm">
-            <li>Ga naar het LinkedIn-tabblad (zorg dat je bent ingelogd).</li>
-            <li>Controleer of de posttekst klopt.</li>
-            <li>
-              {post.image?.imageUrl
-                ? "Plak de afbeelding met Cmd+V (of gebruik de Chrome-extensie die dit automatisch doet)."
-                : "Voeg eventueel een afbeelding toe."}
-            </li>
-            <li>Klik zelf op &quot;Posten&quot; in LinkedIn.</li>
-            <li>Kom terug en markeer de post als gepubliceerd.</li>
-          </ol>
+          {linkedInOrganizationId ? (
+            <ol className="list-decimal space-y-2 pl-5 text-sm">
+              <li>Ga naar het LinkedIn-tabblad (ingelogd als beheerder van de bedrijfspagina).</li>
+              <li>
+                Met de Chrome-extensie opent de composer vanzelf met tekst en afbeelding. Zonder extensie: klik op
+                &quot;Een post maken&quot; en plak de tekst met Cmd+V.
+              </li>
+              {post.image?.imageUrl && (
+                <li>Geen extensie? Download de afbeelding hier en voeg die toe in de composer.</li>
+              )}
+              <li>Controleer dat bovenin de composer de bedrijfspagina als afzender staat.</li>
+              <li>Klik zelf op &quot;Posten&quot; in LinkedIn.</li>
+              <li>Kom terug en markeer de post als gepubliceerd.</li>
+            </ol>
+          ) : (
+            <ol className="list-decimal space-y-2 pl-5 text-sm">
+              <li>Ga naar het LinkedIn-tabblad (zorg dat je bent ingelogd).</li>
+              <li>Controleer of de posttekst klopt.</li>
+              <li>
+                {post.image?.imageUrl
+                  ? "Plak de afbeelding met Cmd+V (of gebruik de Chrome-extensie die dit automatisch doet)."
+                  : "Voeg eventueel een afbeelding toe."}
+              </li>
+              <li>Klik zelf op &quot;Posten&quot; in LinkedIn.</li>
+              <li>Kom terug en markeer de post als gepubliceerd.</li>
+            </ol>
+          )}
           <Button onClick={markManuallyPublished} disabled={busy !== null}>
             {busy === "manual" ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />}
             Markeer als gepubliceerd

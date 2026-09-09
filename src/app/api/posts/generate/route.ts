@@ -16,6 +16,7 @@ export async function POST(request: Request) {
       sourceType: input.sourceType,
       productIds: input.productIds,
       topic: input.topic,
+      websiteCaseId: input.websiteCaseId,
       count: input.count,
       source: "manual",
     });

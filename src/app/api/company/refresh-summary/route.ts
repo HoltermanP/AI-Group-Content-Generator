@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { requireUserId } from "@/lib/auth";
 import { handleApiError, badRequest } from "@/lib/api";
 import { fetchAndSummarizeWebsite } from "@/lib/services/websiteSummary";
+import { syncWebsiteCases } from "@/lib/services/websiteCases";
 
 /**
  * Haalt de website van het bedrijfsprofiel op en slaat een samenvatting op.
@@ -15,6 +16,9 @@ export async function POST() {
     const profile = await prisma.companyProfile.findUnique({ where: { userId } });
     if (!profile) return badRequest("Vul eerst het bedrijfsprofiel in.");
 
+    // Cases van de website meteen mee-verversen (faalt stil).
+    const cases = await syncWebsiteCases(userId, profile.websiteUrl, { force: true }).catch(() => null);
+
     const summary = await fetchAndSummarizeWebsite(profile.websiteUrl);
     if (!summary) {
       return NextResponse.json({
@@ -25,7 +29,7 @@ export async function POST() {
     }
 
     await prisma.companyProfile.update({ where: { userId }, data: { websiteSummary: summary } });
-    return NextResponse.json({ ok: true, summary });
+    return NextResponse.json({ ok: true, summary, cases: cases?.length ?? 0 });
   } catch (err) {
     return handleApiError(err);
   }

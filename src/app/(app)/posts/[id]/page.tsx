@@ -2,6 +2,7 @@ import { notFound } from "next/navigation";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { getLinkedInOrganizationId } from "@/lib/services/linkedin/linkedinConfig";
 import { PostDetailClient } from "./post-detail-client";
 
 export default async function PostDetailPage({ params }: { params: { id: string } }) {
@@ -28,6 +29,7 @@ export default async function PostDetailPage({ params }: { params: { id: string 
 
   return (
     <PostDetailClient
+      linkedInOrganizationId={getLinkedInOrganizationId()}
       post={{
         id: post.id,
         title: post.title,
@@ -38,6 +40,7 @@ export default async function PostDetailPage({ params }: { params: { id: string 
         status: post.status,
         sourceType: post.sourceType,
         topic: post.topic,
+        sourceUrl: post.sourceUrl,
         scheduledAt: post.scheduledAt?.toISOString() ?? null,
         approvedAt: post.approvedAt?.toISOString() ?? null,
         publishedAt: post.publishedAt?.toISOString() ?? null,

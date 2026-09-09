@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { Building2, Package, Boxes, Lightbulb, Newspaper, Briefcase, Sparkles, Loader2 } from "lucide-react";
-import { cn } from "@/lib/utils";
+import { cn, formatDateTime } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
@@ -20,13 +20,23 @@ interface ProductOption {
   shortDescription: string;
 }
 
+interface WebsiteCaseOption {
+  id: string;
+  title: string;
+  sector: string | null;
+  resultLine: string | null;
+  teaser: string | null;
+  url: string;
+  lastUsedAt: string | null;
+}
+
 const SOURCE_OPTIONS: { value: SourceType; label: string; description: string; icon: typeof Building2 }[] = [
   { value: "COMPANY", label: "Bedrijfsprofiel", description: "Een post over wat AI-Group voor klanten betekent.", icon: Building2 },
   { value: "PRODUCT", label: "Eén product", description: "Een post over één specifiek product of dienst.", icon: Package },
   { value: "MULTI_PRODUCT", label: "Meerdere producten", description: "Een post waarin producten elkaar versterken.", icon: Boxes },
   { value: "FREE_TOPIC", label: "Vrij onderwerp", description: "Een post over een onderwerp dat je zelf invoert.", icon: Lightbulb },
   { value: "NEWS", label: "Actualiteit / nieuws", description: "Een post die inhaakt op een actuele ontwikkeling.", icon: Newspaper },
-  { value: "CASE", label: "Praktijkcase", description: "Een post over een situatie of project uit de praktijk.", icon: Briefcase },
+  { value: "CASE", label: "Praktijkcase", description: "Een post over een case van de website, met link naar die case.", icon: Briefcase },
 ];
 
 const TOPIC_LABELS: Partial<Record<SourceType, { label: string; placeholder: string }>> = {
@@ -35,16 +45,27 @@ const TOPIC_LABELS: Partial<Record<SourceType, { label: string; placeholder: str
   CASE: { label: "Praktijkcase", placeholder: "Beschrijf de situatie, aanpak en het resultaat (zonder vertrouwelijke details)" },
 };
 
-export function GenerateClient({ products, hasProfile }: { products: ProductOption[]; hasProfile: boolean }) {
+export function GenerateClient({
+  products,
+  hasProfile,
+  websiteCases,
+}: {
+  products: ProductOption[];
+  hasProfile: boolean;
+  websiteCases: WebsiteCaseOption[];
+}) {
   const router = useRouter();
   const [sourceType, setSourceType] = useState<SourceType>("COMPANY");
   const [selectedProducts, setSelectedProducts] = useState<string[]>([]);
   const [topic, setTopic] = useState("");
+  // Bij CASE: id van de gekozen website-case, of "custom" voor een eigen omschrijving.
+  const [selectedCase, setSelectedCase] = useState<string>(websiteCases[0]?.id ?? "custom");
   const [count, setCount] = useState(1);
   const [busy, setBusy] = useState(false);
 
   const needsProducts = sourceType === "PRODUCT" || sourceType === "MULTI_PRODUCT";
-  const needsTopic = Boolean(TOPIC_LABELS[sourceType]);
+  const usesWebsiteCase = sourceType === "CASE" && selectedCase !== "custom";
+  const needsTopic = Boolean(TOPIC_LABELS[sourceType]) && !usesWebsiteCase;
 
   function toggleProduct(id: string) {
     if (sourceType === "PRODUCT") {
@@ -76,7 +97,8 @@ export function GenerateClient({ products, hasProfile }: { products: ProductOpti
         body: JSON.stringify({
           sourceType,
           productIds: needsProducts ? selectedProducts : [],
-          topic: needsTopic ? topic : undefined,
+          topic: needsTopic || (usesWebsiteCase && topic.trim()) ? topic : undefined,
+          websiteCaseId: usesWebsiteCase ? selectedCase : undefined,
           count,
         }),
       });
@@ -185,17 +207,79 @@ export function GenerateClient({ products, hasProfile }: { products: ProductOpti
         </Card>
       )}
 
-      {needsTopic && (
+      {sourceType === "CASE" && (
         <Card>
           <CardHeader>
-            <CardTitle>{TOPIC_LABELS[sourceType]!.label}</CardTitle>
+            <CardTitle>Welke case?</CardTitle>
+            <CardDescription>
+              Cases worden automatisch opgehaald van de website. De post gebruikt alleen de feiten uit de case en
+              linkt ernaar.{" "}
+              <Link href="/settings/company" className="font-medium text-foreground underline">
+                Cases vernieuwen
+              </Link>
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            {websiteCases.length === 0 ? (
+              <p className="text-sm text-muted-foreground">
+                Nog geen cases opgehaald. Ga naar{" "}
+                <Link href="/settings/company" className="font-medium text-foreground underline">
+                  Bedrijfsprofiel
+                </Link>{" "}
+                en klik op &quot;Cases ophalen van de website&quot;, of beschrijf de case hieronder zelf.
+              </p>
+            ) : (
+              <div className="grid gap-3 sm:grid-cols-2">
+                {websiteCases.map((c) => (
+                  <button
+                    key={c.id}
+                    type="button"
+                    onClick={() => setSelectedCase(c.id)}
+                    className={cn(
+                      "rounded-lg border p-3 text-left transition-colors",
+                      selectedCase === c.id ? "border-primary bg-primary/5 ring-1 ring-primary" : "hover:bg-accent",
+                    )}
+                  >
+                    <p className="text-sm font-medium">{c.title}</p>
+                    {c.sector && <p className="text-xs text-muted-foreground">{c.sector}</p>}
+                    <p className="mt-1 text-xs text-muted-foreground">{c.resultLine ?? c.teaser}</p>
+                    <p className="mt-1 text-[11px] text-muted-foreground">
+                      {c.lastUsedAt ? `Laatst gebruikt: ${formatDateTime(c.lastUsedAt)}` : "Nog niet gebruikt"}
+                    </p>
+                  </button>
+                ))}
+                <button
+                  type="button"
+                  onClick={() => setSelectedCase("custom")}
+                  className={cn(
+                    "rounded-lg border border-dashed p-3 text-left transition-colors",
+                    selectedCase === "custom" ? "border-primary bg-primary/5 ring-1 ring-primary" : "hover:bg-accent",
+                  )}
+                >
+                  <p className="text-sm font-medium">Eigen omschrijving</p>
+                  <p className="mt-1 text-xs text-muted-foreground">Een case die (nog) niet op de website staat.</p>
+                </button>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
+
+      {(needsTopic || usesWebsiteCase) && (
+        <Card>
+          <CardHeader>
+            <CardTitle>{usesWebsiteCase ? "Extra aanwijzingen (optioneel)" : TOPIC_LABELS[sourceType]!.label}</CardTitle>
           </CardHeader>
           <CardContent>
             <Textarea
-              rows={4}
+              rows={usesWebsiteCase ? 2 : 4}
               value={topic}
               onChange={(e) => setTopic(e.target.value)}
-              placeholder={TOPIC_LABELS[sourceType]!.placeholder}
+              placeholder={
+                usesWebsiteCase
+                  ? "Bijv.: leg de nadruk op het resultaat voor de engineers"
+                  : TOPIC_LABELS[sourceType]!.placeholder
+              }
             />
           </CardContent>
         </Card>

@@ -86,7 +86,7 @@ export async function summarizeWebsiteText(text: string, websiteUrl: string): Pr
     messages: [
       {
         role: "user",
-        content: `Vat de volgende websitetekst van ${websiteUrl} samen in maximaal 150 woorden, gericht op: wat doet het bedrijf, voor wie, en welke diensten/producten worden genoemd.\n\n${text.slice(0, 12000)}`,
+        content: `Vat de volgende websitetekst van ${websiteUrl} samen in maximaal 300 woorden, in het Nederlands, feitelijk en zonder reclametaal. Benoem: wat doet het bedrijf, voor wie (sectoren en functies), hoe de aanpak eruitziet (stappen), welke diensten/producten/cases worden genoemd, en welke concrete resultaten of cijfers de site noemt. Verzin niets dat niet in de tekst staat.\n\n${text.slice(0, 16000)}`,
       },
     ],
   });

@@ -9,6 +9,28 @@ export interface GeneratedImage {
 
 const PRIMARY_MODEL = process.env.OPENAI_IMAGE_MODEL || "gpt-image-1";
 const FALLBACK_MODEL = "dall-e-3";
+/** Kwaliteit voor gpt-image-1: "high" geeft de meest fotorealistische texturen. */
+const IMAGE_QUALITY = (process.env.OPENAI_IMAGE_QUALITY || "high") as "low" | "medium" | "high";
+
+/**
+ * Vaste fotografische randvoorwaarden die aan elke prompt worden toegevoegd,
+ * zodat het resultaat altijd als een echte foto oogt, zonder mensen en zonder
+ * tekst, ongeacht hoe de prompt zelf is geformuleerd.
+ */
+const REALISM_SUFFIX =
+  "Photorealistic editorial documentary photograph taken with a full-frame camera, natural lighting, " +
+  "true-to-life colors, realistic materials and textures, subtle depth of field, slight natural grain. " +
+  "Dutch / Northwest-European setting. At most one or two people, naturally at work, with no clear, sharp, camera-facing face " +
+  "(turned away, at a distance, in slight motion or out of focus); no cropped-off heads. " +
+  "The text \"AI-Group\" is subtly but clearly visible somewhere in the frame (sign, sticker, workwear or screen); " +
+  "no other readable text, logos or watermarks. " +
+  "No CGI, no 3D render, no illustration, no cartoon, no neon glow, no holograms, no robots, no circuit patterns.";
+
+export function buildFinalImagePrompt(prompt: string): string {
+  const trimmed = prompt.trim();
+  if (/no cgi/i.test(trimmed) && /ai-group/i.test(trimmed)) return trimmed;
+  return `${trimmed}\n\n${REALISM_SUFFIX}`;
+}
 
 function isServerless(): boolean {
   // Alleen op Vercel is het filesystem niet schrijfbaar; een lokale
@@ -60,7 +82,7 @@ export async function generateImage(prompt: string, postId: string): Promise<Gen
 
   const client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
-  const buffer = await generateBuffer(client, prompt);
+  const buffer = await generateBuffer(client, buildFinalImagePrompt(prompt));
   const filename = `${postId}-${Date.now()}.png`;
   const url = await persistImage(buffer, filename);
   return { url, provider: "openai" };
@@ -91,11 +113,21 @@ async function generateBuffer(client: OpenAI, prompt: string): Promise<Buffer> {
 
 async function callModel(client: OpenAI, model: string, prompt: string): Promise<Buffer> {
   // gpt-image-1 accepteert geen response_format en levert altijd b64;
-  // dall-e-3 gebruikt een eigen ondersteund formaat.
+  // dall-e-3 gebruikt een eigen ondersteund formaat. Bij dall-e-3 is
+  // style "natural" bewust gekozen: "vivid" (de standaard) geeft over-
+  // gestileerde, duidelijk AI-achtige beelden.
   const params =
     model === "dall-e-3"
-      ? { model, prompt, size: "1792x1024" as const, n: 1, response_format: "b64_json" as const }
-      : { model, prompt, size: "1536x1024" as const, n: 1 };
+      ? {
+          model,
+          prompt,
+          size: "1792x1024" as const,
+          n: 1,
+          quality: "hd" as const,
+          style: "natural" as const,
+          response_format: "b64_json" as const,
+        }
+      : { model, prompt, size: "1536x1024" as const, n: 1, quality: IMAGE_QUALITY };
 
   const result = await client.images.generate(params);
   const item = result.data?.[0];

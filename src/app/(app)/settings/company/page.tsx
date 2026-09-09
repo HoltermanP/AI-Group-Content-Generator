@@ -1,11 +1,16 @@
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { listWebsiteCases } from "@/lib/services/websiteCases";
 import { CompanyProfileForm } from "./company-form";
 
 export default async function CompanySettingsPage() {
   const session = await getServerSession(authOptions);
-  const profile = await prisma.companyProfile.findUnique({ where: { userId: session!.user.id } });
+  const userId = session!.user.id;
+  const [profile, websiteCases] = await Promise.all([
+    prisma.companyProfile.findUnique({ where: { userId } }),
+    listWebsiteCases(userId),
+  ]);
 
   return (
     <div className="space-y-6">
@@ -34,6 +39,15 @@ export default async function CompanySettingsPage() {
             : null
         }
         websiteSummary={profile?.websiteSummary ?? null}
+        websiteCases={websiteCases.map((c) => ({
+          id: c.id,
+          title: c.title,
+          sector: c.sector,
+          resultLine: c.resultLine,
+          url: c.url,
+          lastFetchedAt: c.lastFetchedAt.toISOString(),
+          lastUsedAt: c.lastUsedAt?.toISOString() ?? null,
+        }))}
       />
     </div>
   );

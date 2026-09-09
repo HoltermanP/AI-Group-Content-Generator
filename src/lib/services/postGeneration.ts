@@ -1,14 +1,17 @@
-import type { Post, PostSourceType, Prisma } from "@prisma/client";
+import type { Post, PostSourceType, Prisma, WebsiteCase } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { generatePostContent } from "@/lib/ai/textService";
 import { generateImage } from "@/lib/ai/imageService";
 import { computeNextSlots } from "@/lib/services/scheduling";
+import { listWebsiteCases, pickNextWebsiteCase, syncWebsiteCases } from "@/lib/services/websiteCases";
 
 export interface GenerationRequest {
   userId: string;
   sourceType: PostSourceType;
   productIds?: string[];
   topic?: string;
+  /** Case van de website als bron (sourceType CASE). */
+  websiteCaseId?: string;
   count?: number;
   /** "manual" voor de generator-pagina, "auto-fill" voor de kalender, "cron" voor de achtergrondtaak */
   source?: string;
@@ -40,6 +43,22 @@ export async function generatePosts(request: GenerationRequest): Promise<Post[]>
       ? await prisma.product.findMany({ where: { userId, id: { in: request.productIds } } })
       : [];
 
+  // Cases van de website: als feitelijke bron voor een case-post én als
+  // context (echte voorbeelden met link) bij de overige posts.
+  const websiteCase =
+    request.sourceType === "CASE" && request.websiteCaseId
+      ? await prisma.websiteCase.findFirst({ where: { id: request.websiteCaseId, userId } })
+      : null;
+  if (request.sourceType === "CASE" && request.websiteCaseId && !websiteCase) {
+    throw new Error("De gekozen case van de website is niet gevonden. Vernieuw de cases via Instellingen → Bedrijfsprofiel.");
+  }
+  const websiteCases = (await listWebsiteCases(userId)).map((c) => ({
+    title: c.title,
+    sector: c.sector,
+    resultLine: c.resultLine,
+    url: c.url,
+  }));
+
   const existingScheduled = await prisma.post.findMany({
     where: { userId, scheduledAt: { gte: new Date() }, status: { notIn: ["REJECTED", "FAILED"] } },
     select: { scheduledAt: true },
@@ -67,7 +86,10 @@ export async function generatePosts(request: GenerationRequest): Promise<Post[]>
       topic: request.topic,
       recentPosts,
       websiteSummary: profile.websiteSummary,
+      websiteCase,
+      websiteCases,
     });
+    if (websiteCase) output.body = ensureCaseLink(output.body, websiteCase);
 
     const scheduledAt = slots[i] ?? null;
     const status = request.autoApprove
@@ -86,7 +108,8 @@ export async function generatePosts(request: GenerationRequest): Promise<Post[]>
       status,
       approvedAt: request.autoApprove ? new Date() : null,
       sourceType: request.sourceType,
-      topic: request.topic ?? null,
+      topic: request.topic ?? (websiteCase ? websiteCase.title : null),
+      sourceUrl: websiteCase?.url ?? null,
       productIds: selectedProducts.map((p) => p.id),
       scheduledAt,
       image: {
@@ -99,8 +122,15 @@ export async function generatePosts(request: GenerationRequest): Promise<Post[]>
     if (selectedProducts[0]) {
       data.product = { connect: { id: selectedProducts[0].id } };
     }
+    if (websiteCase) {
+      data.websiteCase = { connect: { id: websiteCase.id } };
+    }
 
     const post = await prisma.post.create({ data });
+
+    if (websiteCase) {
+      await prisma.websiteCase.update({ where: { id: websiteCase.id }, data: { lastUsedAt: new Date() } });
+    }
 
     if (scheduledAt) {
       await prisma.publicationSchedule.create({
@@ -116,6 +146,16 @@ export async function generatePosts(request: GenerationRequest): Promise<Post[]>
   }
 
   return created;
+}
+
+/**
+ * Garandeert dat een case-post naar de case op de website linkt, ook als het
+ * taalmodel de link is vergeten.
+ */
+export function ensureCaseLink(body: string, websiteCase: Pick<WebsiteCase, "url">): string {
+  const bare = websiteCase.url.replace(/^https?:\/\//i, "").replace(/\/+$/, "");
+  if (body.includes(websiteCase.url) || body.includes(bare)) return body;
+  return `${body.trimEnd()}\n\nLees de hele case: ${websiteCase.url}`;
 }
 
 /**
@@ -182,6 +222,12 @@ export async function fillCalendar(userId: string, source: "auto-fill" | "cron")
 
   const activeProducts = await prisma.product.findMany({ where: { userId, active: true } });
 
+  // Cases van de website (max. eens per 12 uur opnieuw ophalen; faalt stil).
+  const profile = await prisma.companyProfile.findUnique({ where: { userId }, select: { websiteUrl: true } });
+  const websiteCases = profile
+    ? await syncWebsiteCases(userId, profile.websiteUrl).catch(() => listWebsiteCases(userId))
+    : [];
+
   // Wissel af: producten om en om, met af en toe een bedrijfspost ertussen.
   const recentProductIds = (
     await prisma.post.findMany({
@@ -199,14 +245,44 @@ export async function fillCalendar(userId: string, source: "auto-fill" | "cron")
     return (ai === -1 ? -1 : ai) > (bi === -1 ? -1 : bi) ? -1 : 1;
   });
 
+  // Afwisseling over runs heen: kies telkens de soort post (case, product,
+  // bedrijf) die in de recente posts het minst voorkomt. Zo komen de cases
+  // van de website structureel terug, ook als de cron per run maar één of
+  // twee posts maakt.
+  const recentKinds = (
+    await prisma.post.findMany({
+      where: { userId, status: { not: "REJECTED" } },
+      orderBy: { createdAt: "desc" },
+      take: 6,
+      select: { sourceType: true },
+    })
+  ).map((p) => p.sourceType);
+  const kindCounts: Record<"CASE" | "PRODUCT" | "COMPANY", number> = {
+    CASE: recentKinds.filter((k) => k === "CASE").length,
+    PRODUCT: recentKinds.filter((k) => k === "PRODUCT" || k === "MULTI_PRODUCT").length,
+    COMPANY: recentKinds.filter((k) => k === "COMPANY").length,
+  };
+  const availableKinds: ("CASE" | "PRODUCT" | "COMPANY")[] = [
+    ...(websiteCases.length > 0 ? (["CASE"] as const) : []),
+    ...(activeProducts.length > 0 ? (["PRODUCT"] as const) : []),
+    "COMPANY",
+  ];
+
   const created: Post[] = [];
+  let productIndex = 0;
   for (let i = 0; i < needed; i++) {
-    const useCompanyPost = activeProducts.length === 0 || i % 3 === 2;
-    const product = useCompanyPost ? undefined : rotation[i % Math.max(rotation.length, 1)];
+    const kind = [...availableKinds].sort((a, b) => kindCounts[a] - kindCounts[b])[0];
+    kindCounts[kind] += 1;
+
+    const product = kind === "PRODUCT" ? rotation[productIndex++ % Math.max(rotation.length, 1)] : undefined;
+    const websiteCase = kind === "CASE" ? await pickNextWebsiteCase(userId) : null;
+    const sourceType: PostSourceType = websiteCase ? "CASE" : product ? "PRODUCT" : "COMPANY";
+
     const posts = await generatePosts({
       userId,
-      sourceType: useCompanyPost || !product ? "COMPANY" : "PRODUCT",
+      sourceType,
       productIds: product ? [product.id] : [],
+      websiteCaseId: websiteCase?.id,
       count: 1,
       source,
       markPendingApproval: true,

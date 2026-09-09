@@ -1,4 +1,7 @@
-import type { CompanyProfile, ContentSettings, Product, Post } from "@prisma/client";
+import type { CompanyProfile, ContentSettings, Product, Post, WebsiteCase } from "@prisma/client";
+
+/** Beknopte case-info voor context bij niet-case posts. */
+export type WebsiteCaseSummary = Pick<WebsiteCase, "title" | "sector" | "resultLine" | "url">;
 
 export interface PostGenerationContext {
   profile: CompanyProfile;
@@ -8,6 +11,10 @@ export interface PostGenerationContext {
   topic?: string;
   recentPosts: Pick<Post, "title" | "summary" | "cta">[];
   websiteSummary?: string | null;
+  /** De case van de website waarover de post gaat (bij sourceType CASE). */
+  websiteCase?: WebsiteCase | null;
+  /** Alle cases van de website, als feitelijke voorbeelden bij andere posts. */
+  websiteCases?: WebsiteCaseSummary[];
 }
 
 /**
@@ -24,7 +31,7 @@ export function buildPostSystemPrompt(ctx: PostGenerationContext): string {
         ? "Tussen 120 en 200 woorden."
         : "Tussen 200 en 300 woorden.";
 
-  return `Je bent de senior contentmarketeer van ${profile.companyName}. Je schrijft LinkedIn-posts in het Nederlands.
+  return `Je bent de senior contentmarketeer van ${profile.companyName}. Je schrijft LinkedIn-posts in het Nederlands namens de bedrijfspagina van ${profile.companyName}.
 
 SCHRIJFSTIJL — TOEGANKELIJK EN MENSELIJK (dit gaat boven alles):
 - Schrijf op taalniveau B1: korte zinnen, alledaagse woorden. Alsof je het aan een collega bij de koffieautomaat vertelt.
@@ -33,6 +40,11 @@ SCHRIJFSTIJL — TOEGANKELIJK EN MENSELIJK (dit gaat boven alles):
 - Geen AI-taal. VERBODEN zijn frasen als: "duik in", "ontgrendel", "naadloos", "krachtig", "transformeer", "in het huidige landschap", "laten we eerlijk zijn", "het is geen geheim dat", "Kortom:", "de wereld verandert snel". Vermijd opsommingen met precies drie bijvoeglijke naamwoorden ("sneller, slimmer en beter") en gebruik geen gedachtestreepjes als stijlmiddel.
 - Menselijk en direct, alsof een ondernemer zelf schrijft. Concreet boven abstract: noem een situatie, een aantal uren, een herkenbaar moment.
 - Doe geen overdreven claims; blijf nuchter en geloofwaardig.
+
+FEITELIJK — GEEN VERZINSELS:
+- Gebruik alleen feiten die in de meegeleverde context staan (bedrijfsprofiel, websitesamenvatting, productinformatie, case-tekst).
+- Verzin geen klantnamen, cijfers, percentages of resultaten die niet in de context staan. Staat er geen getal, schrijf dan zonder getal.
+- Verwijs bij een case altijd naar de case op de website met de meegeleverde link.
 
 VERPLICHTE OPBOUW (structuur van de body):
 1. Eén openingszin die een herkenbare situatie, ergernis of vraag neerzet. Nooit een algemene opening zoals "In de wereld van vandaag".
@@ -51,19 +63,20 @@ EISEN AAN ELKE POST:
 - Tone of voice: ${profile.toneOfVoice}
 - Superlatieven en dikke woorden zijn verboden: geen "aanzienlijk", "efficiënt", "optimaal", "innovatief", "revolutionair". Zeg gewoon wat het scheelt: uren, fouten, wachttijd.
 - ${settings.useEmojis ? "Gebruik spaarzaam (max. 2) passende emoji's." : "Gebruik geen emoji's."}
-- Eindig met een duidelijke CTA. Verwijs waar passend naar ${profile.websiteUrl.replace(/^https?:\/\//, "")} of een productspecifieke URL.
+- Eindig met een duidelijke CTA. Verwijs waar passend naar ${profile.websiteUrl.replace(/^https?:\/\//, "")}, een productspecifieke URL of de link van de case.
 - Gebruik precies ${settings.hashtagCount} hashtags, passend bij het onderwerp.
 - Verboden woorden/zinnen (gebruik deze NOOIT): ${profile.forbiddenPhrases.join("; ") || "geen"}
 
 EISEN AAN DE AFBEELDINGPROMPT (imagePrompt, in het Engels):
-- Fotorealistische professionele foto, zakelijke Nederlandse/Europese setting. Moet aanvoelen als een echte foto, niet als AI-beeld.
+- Doel: een echte, geloofwaardige foto die zonder tekst laat zien waar de post over gaat. Niet "een kantoor met een laptop", maar de concrete werkomgeving van het onderwerp.
+- Begin de prompt met de concrete scène, gekoppeld aan het onderwerp. Voorbeelden van goede verankering: bij tracéontwerp voor kabels en leidingen: een open sleuf met kabels langs een weg en een tablet met een kaart erop; bij contracten: een stapel contracten met gemarkeerde clausules op een vergadertafel; bij een magazijn: stellingen met pallets en een handscanner; bij stikstof en bouwplannen: een bouwplaats met kraan naast een natuurgebied; bij aanbestedingen: een tafel vol tenderdocumenten en een planning aan de muur; bij vastgoed: een leeg kantoorpand met bouwtekeningen; bij schouwen en inspecties: een monteur-perspectief op leidingen, meters of een schakelkast. Deze voorbeelden zijn ter inspiratie; beschrijf de scène specifiek voor déze post: locatie, materialen, weer of tijdstip, wat er (onscherp) op een scherm of papier te zien is, en welk detail de kern van de post zichtbaar maakt.
+- Verboden als hoofdonderwerp: generiek bureau met laptop, koffiekop en notitieblok, tenzij de post echt over bureauwerk gaat.
+- Nederlandse of Noordwest-Europese setting: herkenbare Nederlandse straten, polders, bedrijventerreinen, bouwplaatsen, kantoren; geen Amerikaanse skylines of tropische omgevingen.
 - Mensen mogen heel normaal in beeld staan en aan het werk zijn, maar zonder duidelijk, scherp of prominent gezicht: bijvoorbeeld iemand die opzij of van de camera af kijkt, op enige afstand, deels in beweging (lichte motion blur), of met het gezicht deels buiten het frame of buiten scherpte. Geen close-up van een gezicht dat recht in de camera kijkt. Gebruik ten hoogste 1 of 2 personen per foto; geen groepen of drukke scènes met veel mensen.
 - Zet mensen niet gekunsteld weg zonder hoofd of lichaam (geen afgesneden nek, geen "onzichtbare persoon"): het moet een normale, natuurlijke foto blijven, alleen zonder een duidelijk gezicht in beeld.
-- Varieer de omgeving per post en laat die aansluiten bij de daadwerkelijke praktijk uit de post: gebruik concrete details uit het onderwerp (bijv. werkplaats, bouwplaats, magazijn, zorglocatie, winkel, buitenwerk, technische installatie, serverruimte, productielijn, laboratorium, voertuig onderweg). Een kantoor met laptop en documenten is NIET de standaardkeuze en mag alleen als het onderwerp expliciet over kantoorwerk, administratie of software gaat.
-- Duidelijke visuele link met het onderwerp van de post: de kijker moet zonder de tekst kunnen raden waar de post over gaat.
-- Geen robots, geen zwevende hologrammen, geen gloeiende blauwe hersenen, geen overduidelijke AI-symboliek.
-- De tekst "AI-Group" moet altijd ergens duidelijk zichtbaar in beeld staan, subtiel en natuurlijk verwerkt (bijv. op een sticker, bordje, werkkleding, beeldscherm of notitieboek) — laat dit nooit weg. Verder geen grote hoeveelheden tekst in beeld.
-- Beschrijf camera-instelling en licht (bijv. 35mm, natuurlijk daglicht, kleine scherptediepte) voor een natuurlijk resultaat.
+- Geen robots, geen zwevende hologrammen, geen gloeiende blauwe hersenen, geen circuit-patronen, geen overduidelijke AI-symboliek, geen neonlicht.
+- De tekst "AI-Group" moet altijd ergens duidelijk zichtbaar in beeld staan, subtiel en natuurlijk verwerkt (bijv. op een sticker, bordje, werkkleding, beeldscherm of notitieboek) — laat dit nooit weg. Verder geen leesbare tekst, geen andere logo's, geen watermerken. Schermen tonen hooguit een onscherpe kaart, tabel of grafiek.
+- Fotografische beschrijving: camera en lens (bijv. full-frame, 35mm of 50mm), diafragma (f/2.8 tot f/5.6), natuurlijk daglicht of realistisch kunstlicht, echte materialen en texturen, documentaire/redactionele stijl. Sluit af met: "photorealistic editorial photograph, no CGI, no 3D render, no illustration".
 
 OUTPUT:
 Antwoord uitsluitend met geldige JSON, zonder markdown, exact in dit formaat:
@@ -78,7 +91,7 @@ Antwoord uitsluitend met geldige JSON, zonder markdown, exact in dit formaat:
 }
 
 export function buildPostUserPrompt(ctx: PostGenerationContext): string {
-  const { profile, products, sourceType, topic, recentPosts, websiteSummary } = ctx;
+  const { profile, products, sourceType, topic, recentPosts, websiteSummary, websiteCase, websiteCases } = ctx;
 
   const parts: string[] = [];
 
@@ -92,7 +105,16 @@ Standaard CTA: ${profile.defaultCta}
 Standaard hashtags: ${profile.defaultHashtags.join(" ")}`);
 
   if (websiteSummary) {
-    parts.push(`SAMENVATTING VAN DE WEBSITE:\n${websiteSummary}`);
+    parts.push(`SAMENVATTING VAN DE WEBSITE ${profile.websiteUrl} (feitelijke bron):\n${websiteSummary}`);
+  }
+
+  if (websiteCases && websiteCases.length > 0 && sourceType !== "CASE") {
+    parts.push(
+      `PRAKTIJKCASES OP DE WEBSITE (echte projecten; je mag er één kort noemen als voorbeeld, met de link erbij):\n` +
+        websiteCases
+          .map((c) => `- ${c.title}${c.sector ? ` (${c.sector})` : ""}${c.resultLine ? `: ${c.resultLine}` : ""} — ${c.url}`)
+          .join("\n"),
+    );
   }
 
   if (products.length > 0) {
@@ -111,13 +133,31 @@ Standaard hashtags: ${profile.defaultHashtags.join(" ")}`);
     );
   }
 
+  if (websiteCase) {
+    const isExample = /voorbeeld/i.test(`${websiteCase.tag ?? ""} ${websiteCase.title} ${websiteCase.description ?? ""}`);
+    if (isExample) {
+      parts.push(
+        `LET OP: dit is een VOORBEELDCASE, een uitgewerkt scenario en geen bestaande klant. Benoem dat eerlijk in de post (bijv. "een voorbeeld dat we uitwerkten voor een distributiecentrum") en presenteer cijfers als inschatting, niet als behaald resultaat.`,
+      );
+    }
+    parts.push(`DE CASE (volledige tekst van ${websiteCase.url}; dit is de enige feitelijke bron voor deze post):
+Titel: ${websiteCase.title}${websiteCase.sector ? `\nSector: ${websiteCase.sector}` : ""}${websiteCase.resultLine ? `\nKernresultaat: ${websiteCase.resultLine}` : ""}${websiteCase.description ? `\nSamenvatting: ${websiteCase.description}` : ""}
+Link naar de case: ${websiteCase.url}
+
+${websiteCase.content}`);
+  }
+
+  const caseTask = websiteCase
+    ? `Schrijf een LinkedIn-post over de praktijkcase "${websiteCase.title}" van ${profile.companyName}. Vertel het als een verhaal: welk probleem had de organisatie (het vraagstuk), wat deed ${profile.companyName} (de aanpak), wat is er nu anders (het resultaat). Gebruik alleen wat in de case-tekst staat; noem geen klantnaam als die er niet in staat. Kies één invalshoek in plaats van alles te noemen. Sluit af met de CTA en de link naar de case: "Lees de hele case: ${websiteCase.url}" op een eigen regel.${topic ? `\nExtra aanwijzingen: ${topic}` : ""}`
+    : `Schrijf een LinkedIn-post over deze praktijkcase: "${topic}". Beschrijf situatie, aanpak en resultaat zonder vertrouwelijke details te verzinnen.`;
+
   const taskByType: Record<string, string> = {
-    COMPANY: `Schrijf een LinkedIn-post over wat ${profile.companyName} voor klanten betekent. Kies één concreet thema of voorbeeld, niet alles tegelijk.`,
+    COMPANY: `Schrijf een LinkedIn-post over wat ${profile.companyName} voor klanten betekent. Kies één concreet thema, dienst of praktijkvoorbeeld van de website, niet alles tegelijk. Noem je een case, zet dan de link naar die case in de post.`,
     PRODUCT: `Schrijf een LinkedIn-post over het product ${products[0]?.name ?? ""}. Maak het concreet: welk probleem, welk resultaat.`,
     MULTI_PRODUCT: `Schrijf een LinkedIn-post waarin de producten ${products.map((p) => p.name).join(" en ")} samen een verhaal vormen, bijvoorbeeld hoe ze elkaar versterken in één werkproces.`,
     FREE_TOPIC: `Schrijf een LinkedIn-post over dit onderwerp: "${topic}". Verbind het op een natuurlijke manier met wat ${profile.companyName} doet.`,
     NEWS: `Schrijf een LinkedIn-post die inhaakt op deze actualiteit: "${topic}". Geef een nuchtere, praktische kijk vanuit ${profile.companyName}; geen hype.`,
-    CASE: `Schrijf een LinkedIn-post over deze praktijkcase: "${topic}". Beschrijf situatie, aanpak en resultaat zonder vertrouwelijke details te verzinnen.`,
+    CASE: caseTask,
   };
 
   parts.push(`OPDRACHT:\n${taskByType[sourceType] ?? taskByType.COMPANY}`);
@@ -139,14 +179,14 @@ export function buildImagePromptInstruction(postBody: string, companyName: strin
   return `Maak een fotorealistische image-generatieprompt (in het Engels) voor een LinkedIn-post van ${companyName}.
 
 De afbeelding moet:
-- fotorealistisch en professioneel zijn, als een echte zakelijke foto (niet herkenbaar als AI-beeld);
-- passen bij een zakelijke Nederlandse/Europese context;
-- een omgeving tonen die aansluit bij de daadwerkelijke praktijk uit de post, met concrete details uit het onderwerp (bijv. werkplaats, bouwplaats, magazijn, zorglocatie, winkel, buitenwerk, technische installatie, serverruimte, productielijn, laboratorium, voertuig onderweg). Een kantoor met laptop is NIET de standaardkeuze en mag alleen als het onderwerp echt over kantoorwerk, administratie of software gaat;
+- een echte, geloofwaardige foto lijken van de concrete werkomgeving waar de post over gaat: niet "een kantoor met een laptop", maar bijvoorbeeld een sleuf met kabels langs een weg, een vergadertafel met gemarkeerde contracten, een magazijn met stellingen en een handscanner, een bouwplaats naast een natuurgebied, of een schakelkast tijdens een inspectie;
+- beginnen met die concrete scène, zodat de kijker zonder tekst kan raden waar de post over gaat;
+- passen bij een Nederlandse of Noordwest-Europese context (geen Amerikaanse skylines);
 - mensen mogen heel normaal in beeld staan en aan het werk zijn, maar zonder duidelijk, scherp of prominent gezicht (bijv. opzij of van de camera af kijkend, op afstand, in lichte beweging, of deels buiten scherpte) — geen close-up van een gezicht recht in de camera. Gebruik ten hoogste 1 of 2 personen, geen groepen of drukke scènes. Geen gekunsteld weggesneden hoofden of lichamen: het moet een natuurlijke foto blijven, alleen zonder duidelijk gezicht;
-- duidelijk visueel verwijzen naar het onderwerp van de post, zodat de kijker zonder tekst kan raden waar de post over gaat;
-- geen robots, hologrammen of overduidelijke AI-symboliek bevatten;
-- altijd de tekst "${companyName}" duidelijk zichtbaar en subtiel verwerkt bevatten (bijv. op een sticker, bordje, werkkleding of scherm) — nooit weglaten; verder geen grote hoeveelheden tekst;
-- camera- en lichtbeschrijving bevatten voor een natuurlijk resultaat.
+- geen robots, hologrammen, gloeiende hersenen, circuit-patronen of andere AI-symboliek bevatten, geen neonlicht;
+- altijd de tekst "${companyName}" duidelijk zichtbaar en subtiel verwerkt bevatten (bijv. op een sticker, bordje, werkkleding of scherm) — nooit weglaten; verder geen leesbare tekst, andere logo's of watermerken; schermen hooguit met een onscherpe kaart of grafiek;
+- een fotografische beschrijving bevatten: camera en lens (full-frame, 35mm of 50mm), diafragma, natuurlijk daglicht, echte materialen en texturen, documentaire stijl;
+- eindigen met: "photorealistic editorial photograph, no CGI, no 3D render, no illustration".
 
 DE POST:
 ${postBody}
