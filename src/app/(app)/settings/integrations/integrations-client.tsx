@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { toast } from "sonner";
-import { Chrome, Copy, KeyRound, Linkedin, Unplug } from "lucide-react";
+import { Building2, Chrome, Copy, ExternalLink, KeyRound, Linkedin, Unplug } from "lucide-react";
 import { formatDateTime } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -16,6 +16,13 @@ interface AccountStatus {
   tokenExpiresAt: string | null;
   lastError: string | null;
   lastPublishedAt: string | null;
+  organizationName: string | null;
+  authorizedForOrganization: boolean;
+}
+
+interface OrganizationInfo {
+  id: string;
+  adminUrl: string;
 }
 
 interface LastPublishedPost {
@@ -28,12 +35,14 @@ export function IntegrationsClient({
   configured,
   redirectUri,
   hasExtensionToken,
+  organization,
   account,
   lastPublishedPost,
 }: {
   configured: boolean;
   redirectUri: string;
   hasExtensionToken: boolean;
+  organization: OrganizationInfo | null;
   account: AccountStatus | null;
   lastPublishedPost: LastPublishedPost | null;
 }) {
@@ -100,6 +109,10 @@ export function IntegrationsClient({
   const tokenExpired = Boolean(
     account?.tokenExpiresAt && new Date(account.tokenExpiresAt) < new Date(),
   );
+  const needsReauthorization = Boolean(connected && !tokenExpired && organization && !account?.authorizedForOrganization);
+  const organizationLabel = organization
+    ? account?.organizationName ?? `bedrijfspagina ${organization.id}`
+    : "je persoonlijke profiel";
 
   return (
     <div className="space-y-6">
@@ -111,14 +124,67 @@ export function IntegrationsClient({
       <Card>
         <CardHeader className="flex flex-row items-start justify-between space-y-0">
           <div className="flex items-start gap-3">
+            <div className="flex h-10 w-10 items-center justify-center rounded-md bg-emerald-600 text-white">
+              <Building2 className="h-5 w-5" />
+            </div>
+            <div>
+              <CardTitle>Publiceren namens</CardTitle>
+              <CardDescription>
+                Alle posts (API, Chrome-extensie en browserflow) worden geplaatst namens {organizationLabel}.
+              </CardDescription>
+            </div>
+          </div>
+          <Badge variant={organization ? "default" : "outline"}>
+            {organization ? "Bedrijfspagina" : "Persoonlijk profiel"}
+          </Badge>
+        </CardHeader>
+        <CardContent className="space-y-3 text-sm">
+          {organization ? (
+            <>
+              <dl className="grid gap-2 sm:grid-cols-2">
+                <dt className="text-muted-foreground">Bedrijfspagina</dt>
+                <dd>{account?.organizationName ?? "AI-Group"}</dd>
+                <dt className="text-muted-foreground">Organisatie-id</dt>
+                <dd>
+                  <code className="rounded bg-muted px-1.5 py-0.5 text-xs">{organization.id}</code>
+                </dd>
+                <dt className="text-muted-foreground">Beheerdersomgeving</dt>
+                <dd>
+                  <a
+                    href={organization.adminUrl}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="inline-flex items-center gap-1 font-medium hover:underline"
+                  >
+                    Open in LinkedIn <ExternalLink className="h-3.5 w-3.5" />
+                  </a>
+                </dd>
+              </dl>
+              <p className="text-muted-foreground">
+                Het LinkedIn-account waarmee je koppelt of inlogt moet beheerder (of content-beheerder) van deze
+                pagina zijn. Wil je een andere pagina? Pas <code>LINKEDIN_ORGANIZATION_ID</code> aan.
+              </p>
+            </>
+          ) : (
+            <p className="text-muted-foreground">
+              Er is geen bedrijfspagina geconfigureerd; posts gaan naar het profiel waarmee je bent ingelogd. Zet{" "}
+              <code>LINKEDIN_ORGANIZATION_ID</code> om namens een bedrijfspagina te publiceren.
+            </p>
+          )}
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader className="flex flex-row items-start justify-between space-y-0">
+          <div className="flex items-start gap-3">
             <div className="flex h-10 w-10 items-center justify-center rounded-md bg-slate-800 text-white">
               <Chrome className="h-5 w-5" />
             </div>
             <div>
               <CardTitle>Chrome-extensie (aanbevolen)</CardTitle>
               <CardDescription>
-                Plaatst tekst en afbeelding automatisch in de LinkedIn-composer op je ingelogde account.
-                Jij klikt zelf op &quot;Posten&quot;.
+                Plaatst tekst en afbeelding automatisch in de LinkedIn-composer van {organizationLabel}. Jij klikt
+                zelf op &quot;Posten&quot;.
               </CardDescription>
             </div>
           </div>
@@ -169,8 +235,10 @@ export function IntegrationsClient({
               <li>Open de instellingen van de extensie en vul de app-URL en dit token in.</li>
             </ol>
             <p className="mt-2">
-              Bij goedkeuren opent de app LinkedIn automatisch. Met de extensie worden tekst én afbeelding
-              in de composer gezet op het account waarmee je bent ingelogd.
+              Bij goedkeuren opent de app {organization ? "de beheerdersomgeving van de bedrijfspagina" : "LinkedIn"}{" "}
+              automatisch. Met de extensie worden tekst én afbeelding in de composer gezet
+              {organization ? " namens de pagina" : " op het account waarmee je bent ingelogd"}. Zorg dat je in
+              Chrome bent ingelogd met een LinkedIn-account dat beheerder van de pagina is.
             </p>
           </div>
         </CardContent>
@@ -184,11 +252,13 @@ export function IntegrationsClient({
             </div>
             <div>
               <CardTitle>LinkedIn API (optioneel)</CardTitle>
-              <CardDescription>Automatisch publiceren zonder browser — vereist OAuth-app configuratie.</CardDescription>
+              <CardDescription>
+                Automatisch publiceren zonder browser namens {organizationLabel} — vereist OAuth-app configuratie.
+              </CardDescription>
             </div>
           </div>
-          <Badge variant={connected && !tokenExpired ? "default" : "outline"}>
-            {connected && !tokenExpired ? "Actief" : "Inactief"}
+          <Badge variant={connected && !tokenExpired && !needsReauthorization ? "default" : "outline"}>
+            {connected && !tokenExpired ? (needsReauthorization ? "Opnieuw koppelen" : "Actief") : "Inactief"}
           </Badge>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -201,9 +271,24 @@ export function IntegrationsClient({
                   : `Geldig tot ${formatDateTime(account?.tokenExpiresAt)}`
                 : "Geen token"}
             </dd>
+            <dt className="text-muted-foreground">Publiceert namens</dt>
+            <dd>
+              {connected
+                ? account?.authorizedForOrganization
+                  ? organizationLabel
+                  : "persoonlijk profiel (nog niet geautoriseerd voor de bedrijfspagina)"
+                : "—"}
+            </dd>
             <dt className="text-muted-foreground">Laatst gepubliceerd via koppeling</dt>
             <dd>{formatDateTime(account?.lastPublishedAt ?? null)}</dd>
           </dl>
+
+          {needsReauthorization && (
+            <p className="rounded-md bg-amber-50 p-3 text-sm text-amber-900">
+              Deze koppeling is gemaakt zonder rechten voor de bedrijfspagina. Koppel LinkedIn opnieuw zodat de
+              app toestemming krijgt om namens {organizationLabel} te publiceren.
+            </p>
+          )}
 
           {account?.lastError && (
             <p className="rounded-md bg-red-50 p-3 text-sm text-red-700">
@@ -255,7 +340,7 @@ export function IntegrationsClient({
                 </Button>
               </a>
             )}
-            {configured && connected && tokenExpired && (
+            {configured && connected && (tokenExpired || needsReauthorization) && (
               <a href="/api/integrations/linkedin/connect">
                 <Button>
                   <Linkedin className="h-4 w-4" /> Opnieuw koppelen
@@ -275,6 +360,13 @@ export function IntegrationsClient({
               <li>Alleen nodig als je volledig automatisch wilt publiceren (cron, zonder browser).</li>
               <li>Voor normaal gebruik volstaat de browserflow via goedkeuren + Chrome-extensie.</li>
               <li>Vereist <code>LINKEDIN_CLIENT_ID</code> en <code>LINKEDIN_CLIENT_SECRET</code> in je omgeving.</li>
+              {organization && (
+                <li>
+                  Voor de bedrijfspagina moet het product <strong>Community Management API</strong> op je
+                  LinkedIn-app actief zijn (scopes <code>w_organization_social</code> en{" "}
+                  <code>r_organization_admin</code>), en moet je koppelen met een beheerdersaccount van de pagina.
+                </li>
+              )}
             </ul>
           </div>
         </CardContent>

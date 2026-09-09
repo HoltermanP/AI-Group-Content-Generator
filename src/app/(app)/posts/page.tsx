@@ -2,6 +2,7 @@ import { getServerSession } from "next-auth";
 import type { PostStatus } from "@prisma/client";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { getLinkedInOrganizationId } from "@/lib/services/linkedin/linkedinConfig";
 import { PostsClient } from "./posts-client";
 
 const VALID_STATUSES: PostStatus[] = [
@@ -34,6 +35,7 @@ export default async function PostsPage({ searchParams }: { searchParams: { stat
       </div>
       <PostsClient
         activeStatus={status ?? null}
+        linkedInOrganizationId={getLinkedInOrganizationId()}
         posts={posts.map((p) => ({
           id: p.id,
           title: p.title,

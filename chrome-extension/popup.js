@@ -65,6 +65,10 @@ async function loadPosts() {
   }
 
   contentEl.replaceChildren();
+  if (data.linkedin?.organizationId) {
+    const label = data.linkedin.organizationName || `bedrijfspagina ${data.linkedin.organizationId}`;
+    contentEl.append(el("p", "muted center", `Posts worden geplaatst namens ${label}.`));
+  }
   if (data.posts.length === 0) {
     const box = el("div", "empty");
     box.append(
@@ -97,7 +101,13 @@ function renderPost(post, baseUrl, token) {
     try {
       await chrome.runtime.sendMessage({
         action: "PUBLISH_TO_LINKEDIN",
-        payload: { postId: post.id, text: post.fullText, imageUrl: post.imageUrl },
+        payload: {
+          postId: post.id,
+          text: post.fullText,
+          imageUrl: post.imageUrl,
+          organizationId: post.organizationId ?? null,
+          composerUrl: post.composerUrl ?? null,
+        },
       });
       publishBtn.textContent = "LinkedIn geopend ✓";
     } catch (err) {

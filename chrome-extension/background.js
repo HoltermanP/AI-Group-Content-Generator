@@ -17,7 +17,12 @@ async function handlePublish(payload, openTab = true) {
 
   if (!openTab) return { ok: true };
 
-  const url = `https://www.linkedin.com/feed/?shareActive=true&text=${encodeURIComponent(payload.text)}`;
+  // composerUrl wijst naar de beheerdersomgeving van de bedrijfspagina (post
+  // namens de pagina); zonder composerUrl valt de extensie terug op de
+  // persoonlijke feed-composer met voorgevulde tekst.
+  const url =
+    payload.composerUrl ||
+    `https://www.linkedin.com/feed/?shareActive=true&text=${encodeURIComponent(payload.text)}`;
   const tabs = await chrome.tabs.query({ url: "*://*.linkedin.com/*" });
 
   if (tabs.length > 0 && tabs[0].id) {

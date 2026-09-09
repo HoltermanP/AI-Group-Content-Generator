@@ -1,10 +1,14 @@
 import type { IntegrationAccount, Post, PostImage } from "@prisma/client";
-import { isLinkedInConfigured } from "@/lib/services/linkedin/linkedinAuthService";
+import { isLinkedInConfigured, restHeaders } from "@/lib/services/linkedin/linkedinAuthService";
+import { getLinkedInOrganizationId, organizationUrn } from "@/lib/services/linkedin/linkedinConfig";
 
 /**
- * linkedinPublishService — publiceert goedgekeurde posts via de officiële
- * LinkedIn API (w_member_social): UGC Posts voor de post zelf en de Assets
- * API voor het meesturen van de afbeelding.
+ * linkedinPublishService — publiceert goedgekeurde posts via de officiële,
+ * versioned LinkedIn API (Community Management API):
+ * - Posts API (/rest/posts) voor de post zelf, met als auteur de
+ *   bedrijfspagina van AI-Group (urn:li:organization:…) of, als er geen
+ *   bedrijfspagina geconfigureerd is, het persoonlijke profiel.
+ * - Images API (/rest/images) voor het meesturen van de afbeelding.
  *
  * Modulair opgezet: zolang de LinkedIn-app niet geconfigureerd is, draait de
  * service in stub-modus en wordt er niets daadwerkelijk gepubliceerd. De
@@ -12,8 +16,8 @@ import { isLinkedInConfigured } from "@/lib/services/linkedin/linkedinAuthServic
  * deze service bereiken.
  */
 
-const UGC_POSTS_URL = "https://api.linkedin.com/v2/ugcPosts";
-const REGISTER_UPLOAD_URL = "https://api.linkedin.com/v2/assets?action=registerUpload";
+const POSTS_URL = "https://api.linkedin.com/rest/posts";
+const INITIALIZE_IMAGE_UPLOAD_URL = "https://api.linkedin.com/rest/images?action=initializeUpload";
 
 export interface PublishResult {
   success: boolean;
@@ -33,10 +37,33 @@ export function isPublishAvailable(account: IntegrationAccount | null): boolean 
 }
 
 /**
- * Publiceert de post op LinkedIn. Als de post een gegenereerde afbeelding
- * heeft, wordt die via de officiële Assets API geüpload en meegestuurd.
- * Lukt de afbeeldingsupload niet, dan wordt de post als tekstpost geplaatst
- * (beter een post zonder beeld dan geen post) en staat dat in de melding.
+ * Bepaalt namens wie er gepubliceerd wordt. Is er een bedrijfspagina
+ * geconfigureerd, dan moet de koppeling daarvoor ook geautoriseerd zijn
+ * (organizationUrn op het account); anders is opnieuw koppelen nodig.
+ */
+export function resolveAuthor(
+  account: IntegrationAccount,
+): { authorUrn: string; label: string } | { error: string } {
+  const configuredId = getLinkedInOrganizationId();
+  if (!configuredId) {
+    return { authorUrn: account.providerAccountId!, label: "persoonlijk profiel" };
+  }
+  const expected = organizationUrn(configuredId);
+  if (account.organizationUrn !== expected) {
+    return {
+      error:
+        "De LinkedIn-koppeling is nog niet geautoriseerd voor de bedrijfspagina. Koppel LinkedIn opnieuw via Instellingen → Integraties.",
+    };
+  }
+  return { authorUrn: expected, label: account.organizationName ?? `bedrijfspagina ${configuredId}` };
+}
+
+/**
+ * Publiceert de post op LinkedIn namens de bedrijfspagina. Als de post een
+ * gegenereerde afbeelding heeft, wordt die via de officiële Images API
+ * geüpload en meegestuurd. Lukt de afbeeldingsupload niet, dan wordt de post
+ * als tekstpost geplaatst (beter een post zonder beeld dan geen post) en
+ * staat dat in de melding.
  */
 export async function publishPost(
   account: IntegrationAccount | null,
@@ -51,51 +78,53 @@ export async function publishPost(
     };
   }
 
+  const author = resolveAuthor(account);
+  if ("error" in author) {
+    return { success: false, provider: "stub", message: author.error };
+  }
+
   const text = [post.body, post.hashtags.join(" ")].filter(Boolean).join("\n\n");
 
   // Afbeelding uploaden als die er is; bij mislukking door met tekst-only.
-  let assetUrn: string | null = null;
+  let imageUrn: string | null = null;
   let imageNote = "";
   const imageUrl = post.image?.imageStatus === "COMPLETED" ? post.image.imageUrl : null;
   if (imageUrl) {
     try {
-      assetUrn = await uploadImage(account, imageUrl);
+      imageUrn = await uploadImage(account.accessToken!, author.authorUrn, imageUrl);
     } catch (err) {
       imageNote = ` (afbeelding kon niet worden meegestuurd: ${err instanceof Error ? err.message : String(err)})`;
     }
   }
 
   const payload = {
-    author: account.providerAccountId,
-    lifecycleState: "PUBLISHED",
-    specificContent: {
-      "com.linkedin.ugc.ShareContent": {
-        shareCommentary: { text },
-        shareMediaCategory: assetUrn ? "IMAGE" : "NONE",
-        ...(assetUrn
-          ? {
-              media: [
-                {
-                  status: "READY",
-                  media: assetUrn,
-                  title: { text: post.title.slice(0, 200) },
-                },
-              ],
-            }
-          : {}),
-      },
+    author: author.authorUrn,
+    commentary: toLittleText(text),
+    visibility: "PUBLIC",
+    distribution: {
+      feedDistribution: "MAIN_FEED",
+      targetEntities: [],
+      thirdPartyDistributionChannels: [],
     },
-    visibility: { "com.linkedin.ugc.MemberNetworkVisibility": "PUBLIC" },
+    ...(imageUrn
+      ? {
+          content: {
+            media: {
+              id: imageUrn,
+              title: post.title.slice(0, 200),
+              altText: post.summary.slice(0, 120),
+            },
+          },
+        }
+      : {}),
+    lifecycleState: "PUBLISHED",
+    isReshareDisabledByAuthor: false,
   };
 
   try {
-    const response = await fetch(UGC_POSTS_URL, {
+    const response = await fetch(POSTS_URL, {
       method: "POST",
-      headers: {
-        Authorization: `Bearer ${account.accessToken}`,
-        "Content-Type": "application/json",
-        "X-Restli-Protocol-Version": "2.0.0",
-      },
+      headers: restHeaders(account.accessToken!, { "Content-Type": "application/json" }),
       body: JSON.stringify(payload),
     });
 
@@ -113,9 +142,9 @@ export async function publishPost(
       success: true,
       provider: "linkedin",
       externalId,
-      message: assetUrn
-        ? "Post met afbeelding gepubliceerd via LinkedIn."
-        : `Post gepubliceerd via LinkedIn${imageNote || " (zonder afbeelding)"}.`,
+      message: imageUrn
+        ? `Post met afbeelding gepubliceerd op LinkedIn namens ${author.label}.`
+        : `Post gepubliceerd op LinkedIn namens ${author.label}${imageNote || " (zonder afbeelding)"}.`,
     };
   } catch (err) {
     return {
@@ -127,48 +156,46 @@ export async function publishPost(
 }
 
 /**
- * Uploadt de afbeelding naar LinkedIn via de officiële Assets API:
- * registerUpload → binary PUT → asset-URN voor gebruik in de UGC-post.
+ * Zet platte tekst om naar LinkedIn's "little text format" voor het
+ * commentary-veld. Gereserveerde tekens worden ge-escaped zodat ze letterlijk
+ * worden getoond; hashtags (#woord) blijven staan zodat LinkedIn ze herkent.
  */
-async function uploadImage(account: IntegrationAccount, imageUrl: string): Promise<string> {
+export function toLittleText(text: string): string {
+  return text
+    .replace(/\\/g, "\\\\")
+    .replace(/[|{}@[\]()<>*_~]/g, (char) => `\\${char}`)
+    .replace(/#(?![\w\u00C0-\u024F])/g, "\\#");
+}
+
+/**
+ * Uploadt de afbeelding naar LinkedIn via de officiële Images API:
+ * initializeUpload → binary PUT → image-URN voor gebruik in de post.
+ * De eigenaar van de afbeelding is dezelfde als de auteur van de post.
+ */
+async function uploadImage(accessToken: string, ownerUrn: string, imageUrl: string): Promise<string> {
   // 1. Afbeelding ophalen.
   const imageBuffer = await fetchImageBuffer(imageUrl);
 
   // 2. Upload registreren.
-  const registerResponse = await fetch(REGISTER_UPLOAD_URL, {
+  const initResponse = await fetch(INITIALIZE_IMAGE_UPLOAD_URL, {
     method: "POST",
-    headers: {
-      Authorization: `Bearer ${account.accessToken}`,
-      "Content-Type": "application/json",
-      "X-Restli-Protocol-Version": "2.0.0",
-    },
-    body: JSON.stringify({
-      registerUploadRequest: {
-        recipes: ["urn:li:digitalmediaRecipe:feedshare-image"],
-        owner: account.providerAccountId,
-        serviceRelationships: [
-          { relationshipType: "OWNER", identifier: "urn:li:userGeneratedContent" },
-        ],
-      },
-    }),
+    headers: restHeaders(accessToken, { "Content-Type": "application/json" }),
+    body: JSON.stringify({ initializeUploadRequest: { owner: ownerUrn } }),
   });
-  if (!registerResponse.ok) {
-    throw new Error(`registerUpload gaf status ${registerResponse.status}`);
+  if (!initResponse.ok) {
+    throw new Error(`initializeUpload gaf status ${initResponse.status}`);
   }
-  const registerData = (await registerResponse.json()) as {
-    value: {
-      asset: string;
-      uploadMechanism: Record<string, { uploadUrl: string }>;
-    };
+  const initData = (await initResponse.json()) as {
+    value: { uploadUrl: string; image: string };
   };
-  const uploadUrl = Object.values(registerData.value.uploadMechanism)[0]?.uploadUrl;
-  if (!uploadUrl) throw new Error("geen uploadUrl ontvangen van LinkedIn");
+  const { uploadUrl, image } = initData.value ?? {};
+  if (!uploadUrl || !image) throw new Error("geen uploadUrl ontvangen van LinkedIn");
 
   // 3. Binary uploaden.
   const uploadResponse = await fetch(uploadUrl, {
     method: "PUT",
     headers: {
-      Authorization: `Bearer ${account.accessToken}`,
+      Authorization: `Bearer ${accessToken}`,
       "Content-Type": "application/octet-stream",
     },
     body: new Uint8Array(imageBuffer),
@@ -177,7 +204,7 @@ async function uploadImage(account: IntegrationAccount, imageUrl: string): Promi
     throw new Error(`upload gaf status ${uploadResponse.status}`);
   }
 
-  return registerData.value.asset;
+  return image;
 }
 
 /**

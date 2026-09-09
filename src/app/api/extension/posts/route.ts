@@ -6,6 +6,8 @@ import {
   corsPreflightResponse,
 } from "@/lib/extensionAuth";
 import { handleApiError } from "@/lib/api";
+import { linkedInComposerUrl } from "@/lib/browserPublish";
+import { getLinkedInOrganizationId } from "@/lib/services/linkedin/linkedinConfig";
 
 export const dynamic = "force-dynamic";
 
@@ -29,22 +31,39 @@ export async function GET(request: Request) {
     });
 
     const origin = new URL(request.url).origin;
+    const organizationId = getLinkedInOrganizationId();
+    const account = organizationId
+      ? await prisma.integrationAccount.findUnique({
+          where: { userId_provider: { userId, provider: "linkedin" } },
+          select: { organizationName: true },
+        })
+      : null;
 
     return NextResponse.json(
       {
-        posts: posts.map((post) => ({
-          id: post.id,
-          title: post.title,
-          body: post.body,
-          hashtags: post.hashtags,
-          fullText: [post.body, post.hashtags.join(" ")].filter(Boolean).join("\n\n"),
-          scheduledAt: post.scheduledAt?.toISOString() ?? null,
-          imageUrl: post.image?.imageUrl
-            ? post.image.imageUrl.startsWith("http")
-              ? post.image.imageUrl
-              : `${origin}${post.image.imageUrl}`
-            : null,
-        })),
+        // Namens welke bedrijfspagina de extensie moet posten (null = persoonlijk profiel).
+        linkedin: {
+          organizationId,
+          organizationName: account?.organizationName ?? null,
+        },
+        posts: posts.map((post) => {
+          const fullText = [post.body, post.hashtags.join(" ")].filter(Boolean).join("\n\n");
+          return {
+            id: post.id,
+            title: post.title,
+            body: post.body,
+            hashtags: post.hashtags,
+            fullText,
+            scheduledAt: post.scheduledAt?.toISOString() ?? null,
+            imageUrl: post.image?.imageUrl
+              ? post.image.imageUrl.startsWith("http")
+                ? post.image.imageUrl
+                : `${origin}${post.image.imageUrl}`
+              : null,
+            organizationId,
+            composerUrl: linkedInComposerUrl(fullText, organizationId),
+          };
+        }),
       },
       { headers: EXTENSION_CORS_HEADERS },
     );

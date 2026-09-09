@@ -2,6 +2,11 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { isLinkedInConfigured, getRedirectUri } from "@/lib/services/linkedin/linkedinAuthService";
+import {
+  getLinkedInOrganizationId,
+  organizationAdminUrl,
+  organizationUrn,
+} from "@/lib/services/linkedin/linkedinConfig";
 import { IntegrationsClient } from "./integrations-client";
 
 export default async function IntegrationsPage() {
@@ -21,12 +26,19 @@ export default async function IntegrationsPage() {
     select: { id: true, title: true, publishedAt: true },
   });
 
+  const organizationId = getLinkedInOrganizationId();
+
   // Let op: tokens worden bewust NIET naar de client gestuurd; alleen status.
   return (
     <IntegrationsClient
       configured={isLinkedInConfigured()}
       redirectUri={getRedirectUri()}
       hasExtensionToken={Boolean(user?.extensionTokenHash)}
+      organization={
+        organizationId
+          ? { id: organizationId, adminUrl: organizationAdminUrl(organizationId) }
+          : null
+      }
       account={
         account
           ? {
@@ -35,6 +47,12 @@ export default async function IntegrationsPage() {
               tokenExpiresAt: account.expiresAt?.toISOString() ?? null,
               lastError: account.lastError,
               lastPublishedAt: account.lastPublishedAt?.toISOString() ?? null,
+              organizationName: account.organizationName,
+              // Koppeling is pas bruikbaar voor de bedrijfspagina als die
+              // met de organisatie-scopes is gemaakt.
+              authorizedForOrganization: organizationId
+                ? account.organizationUrn === organizationUrn(organizationId)
+                : true,
             }
           : null
       }

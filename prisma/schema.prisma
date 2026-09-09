@@ -26,6 +26,7 @@ model User {
   schedules        PublicationSchedule[]
   publicationLogs  PublicationLog[]
   integrations     IntegrationAccount[]
+  websiteCases     WebsiteCase[]
 }
 
 // ─── Bedrijfsprofiel ──────────────────────────────────────────────────────────
@@ -141,6 +142,8 @@ model Post {
   status      PostStatus     @default(DRAFT)
   sourceType  PostSourceType @default(COMPANY)
   topic       String? // vrij onderwerp / actualiteit / case-omschrijving
+  sourceUrl   String? // link naar de bron (bijv. de case op de website) die in de post staat
+  websiteCaseId String? // case van de website waarop deze post is gebaseerd
   productId   String? // primair gekoppeld product
   productIds  String[]       @default([]) // alle gekoppelde producten
   scheduledAt DateTime?
@@ -151,6 +154,7 @@ model Post {
 
   user    User       @relation(fields: [userId], references: [id], onDelete: Cascade)
   product Product?   @relation(fields: [productId], references: [id], onDelete: SetNull)
+  websiteCase WebsiteCase? @relation(fields: [websiteCaseId], references: [id], onDelete: SetNull)
   image   PostImage?
   logs    PublicationLog[]
   schedule PublicationSchedule?
@@ -172,6 +176,37 @@ model PostImage {
   updatedAt     DateTime    @updatedAt
 
   post Post @relation(fields: [postId], references: [id], onDelete: Cascade)
+}
+
+// ─── Cases van de website ─────────────────────────────────────────────────────
+
+/// Praktijkcase zoals gepubliceerd op de bedrijfswebsite (bijv. ai-group.nl/cases/*).
+/// Wordt automatisch opgehaald en dient als feitelijke bron voor case-posts,
+/// inclusief de link naar de case in de post.
+model WebsiteCase {
+  id            String    @id @default(cuid())
+  userId        String
+  url           String    // absolute URL van de case-pagina
+  slug          String
+  title         String
+  sector        String?   // bijv. "Infra & netbeheer"
+  tag           String?   // label op de overzichtskaart, bijv. "INFRAENGINEERING"
+  resultLine    String?   // kernresultaat in één regel
+  teaser        String?   // korte omschrijving van de overzichtskaart
+  description   String?   // meta description van de case-pagina
+  content       String    // volledige tekst van de case (vraagstuk, aanpak, oplossing, resultaat)
+  imageUrl      String?   // afbeelding op de case-pagina (alleen ter referentie)
+  active        Boolean   @default(true) // false zodra de case niet meer op de site staat
+  lastFetchedAt DateTime  @default(now())
+  lastUsedAt    DateTime? // laatste keer dat er een post over deze case is gemaakt
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  user  User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  posts Post[]
+
+  @@unique([userId, url])
+  @@index([userId, active])
 }
 
 // ─── Planning en publicatie ───────────────────────────────────────────────────
@@ -214,6 +249,8 @@ model IntegrationAccount {
   userId            String
   provider          String // "linkedin"
   providerAccountId String? // LinkedIn member URN
+  organizationUrn   String? // bedrijfspagina waarvoor de koppeling geautoriseerd is (urn:li:organization:…)
+  organizationName  String? // naam van die bedrijfspagina (cosmetisch)
   accessToken       String? // alleen server-side gebruikt, nooit naar de client gestuurd
   refreshToken      String?
   expiresAt         DateTime?

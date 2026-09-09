@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
   "name": "AI-Group Publicatie-assistent",
-  "version": "1.1.0",
-  "description": "Plaatst goedgekeurde AI-Group posts klaar in LinkedIn: tekst en afbeelding in de composer. Jij klikt zelf op Posten.",
+  "version": "1.2.0",
+  "description": "Plaatst goedgekeurde AI-Group posts klaar in LinkedIn namens de bedrijfspagina: tekst en afbeelding in de composer. Jij klikt zelf op Posten.",
   "action": {
     "default_popup": "popup.html",
     "default_title": "AI-Group Publicatie-assistent"

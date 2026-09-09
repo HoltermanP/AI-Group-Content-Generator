@@ -13,7 +13,7 @@ chrome.storage.session.get(PENDING_KEY).then((data) => {
 
 async function prepareComposer(payload) {
   try {
-    await waitForComposer();
+    await waitForComposer(payload.organizationId ? "organization" : "member");
     await ensureText(payload.text);
     if (payload.imageUrl) {
       await attachImage(payload.imageUrl);
@@ -26,19 +26,54 @@ async function prepareComposer(payload) {
   }
 }
 
-function waitForComposer() {
+/**
+ * Wacht tot de composer zichtbaar is. In de beheerdersomgeving van een
+ * bedrijfspagina opent de composer niet altijd vanzelf; dan klikken we op
+ * "Een post maken" zodat de composer namens de pagina opent.
+ */
+function waitForComposer(mode = "member") {
   return new Promise((resolve, reject) => {
     const start = Date.now();
+    let lastOpenAttempt = 0;
     const tick = () => {
       const editor = findComposerEditor();
       if (editor) return resolve(editor);
-      if (Date.now() - start > MAX_WAIT_MS) {
+      const elapsed = Date.now() - start;
+      if (elapsed > MAX_WAIT_MS) {
         return reject(new Error("Composer niet gevonden"));
+      }
+      if (mode === "organization" && elapsed > 1500 && Date.now() - lastOpenAttempt > 2500) {
+        const trigger = findStartPostButton();
+        if (trigger) {
+          trigger.click();
+          lastOpenAttempt = Date.now();
+        }
       }
       requestAnimationFrame(tick);
     };
     tick();
   });
+}
+
+function findStartPostButton() {
+  const direct = document.querySelector("button.share-box-feed-entry__trigger");
+  if (direct && isVisible(direct)) return direct;
+
+  const labels = [
+    "start a post",
+    "create a post",
+    "een post maken",
+    "post maken",
+    "maak een post",
+    "bericht plaatsen",
+    "begin een post",
+  ];
+  const buttons = document.querySelectorAll("button, [role='button']");
+  for (const btn of buttons) {
+    const label = (btn.getAttribute("aria-label") || btn.textContent || "").trim().toLowerCase();
+    if (label && isVisible(btn) && labels.some((l) => label.includes(l))) return btn;
+  }
+  return null;
 }
 
 function findComposerEditor() {

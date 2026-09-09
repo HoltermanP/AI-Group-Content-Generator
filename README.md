@@ -63,7 +63,7 @@ src/lib/services/scheduling.ts        # Frequentie, voorkeursdagen, tijdvenster,
 src/lib/services/postGeneration.ts    # Orkestratie: context → AI → post + afbeeldingprompt + planning
 src/lib/services/publishing.ts        # Goedkeuringsgarantie + publicatielog
 src/lib/services/websiteSummary.ts    # Website ophalen/samenvatten, faalt stil terug op profiel
-src/lib/services/linkedin/            # linkedinAuthService (OAuth) + linkedinPublishService (UGC API)
+src/lib/services/linkedin/            # linkedinConfig (bedrijfspagina) + linkedinAuthService (OAuth) + linkedinPublishService (Posts API)
 src/app/(app)/                # Dashboard, posts, generator, kalender, producten, instellingen
 src/app/api/                  # REST-routes incl. /api/cron/* (beveiligd met CRON_SECRET)
 ```
@@ -101,6 +101,7 @@ Het project is deploy-klaar. Stappenplan:
      staat standaard op `auto`)
    - `CRON_SECRET` — `openssl rand -hex 24`
    - optioneel: `LINKEDIN_CLIENT_ID` / `LINKEDIN_CLIENT_SECRET` voor automatische publicatie
+   - `LINKEDIN_ORGANIZATION_ID` — id van de bedrijfspagina (standaard `110094547`, AI-Group)
 5. **Schema + seed** — eenmalig vanaf je eigen machine, met `DATABASE_URL` naar productie:
 
    ```bash
@@ -121,11 +122,12 @@ versnelt zonder LinkedIn te automatiseren:
 
 - toont alle **goedgekeurde** posts die klaarstaan (uit de app, via een persoonlijk token);
 - kopieert de posttekst, downloadt de afbeelding;
-- opent de LinkedIn-composer met de tekst vooraf ingevuld via LinkedIn's eigen share-deeplink;
+- opent de beheerdersomgeving van de bedrijfspagina en zet tekst en afbeelding klaar in de composer
+  (namens de pagina); zonder bedrijfspagina de persoonlijke feed-composer met voorgevulde tekst;
 - meldt de post na het plaatsen terug als "gepubliceerd".
 
-**Bewust geen** content scripts op linkedin.com, geen automatische kliks, geen botgedrag: de gebruiker
-controleert de post en klikt zelf op "Posten".
+**Geen automatische publicatie**: de extensie vult alleen de composer; de gebruiker controleert de post
+en klikt zelf op "Posten".
 
 Installatie: `chrome://extensions` → Ontwikkelaarsmodus aan → "Uitgepakte extensie laden" → map
 `chrome-extension/` kiezen. Genereer daarna in de app (Integraties → Chrome-extensie) een token en vul
@@ -134,11 +136,22 @@ is per direct intrekbaar.
 
 ## LinkedIn-integratie
 
-- Uitsluitend via de **officiële LinkedIn OAuth-flow en UGC Posts API** (`w_member_social`).
-  Geen browser-automatisering, geen click-automation, geen anti-detectie.
-- Configureer een LinkedIn-app (producten "Share on LinkedIn" + "Sign In with LinkedIn using OpenID
-  Connect") en zet `LINKEDIN_CLIENT_ID`/`LINKEDIN_CLIENT_SECRET`. Redirect-URL:
+- **Publiceert namens de bedrijfspagina van AI-Group**
+  (`https://www.linkedin.com/company/110094547/admin/dashboard/`). Het organisatie-id staat in
+  `LINKEDIN_ORGANIZATION_ID` (standaard `110094547`; zet op `personal` om op het persoonlijke profiel
+  te publiceren). Dit geldt voor alle drie de routes: API, Chrome-extensie en browserflow.
+- Uitsluitend via de **officiële LinkedIn OAuth-flow en de versioned Posts/Images API**
+  (`/rest/posts`, `/rest/images`) met scopes `w_organization_social` + `r_organization_admin`
+  (bedrijfspagina) en `w_member_social` (persoonlijk). Geen browser-automatisering, geen
+  click-automation, geen anti-detectie.
+- Configureer een LinkedIn-app met de producten "Sign In with LinkedIn using OpenID Connect",
+  "Share on LinkedIn" én **"Community Management API"** (vereist voor posten namens een pagina; koppel
+  de app in de Developer Portal aan de AI-Group bedrijfspagina) en zet
+  `LINKEDIN_CLIENT_ID`/`LINKEDIN_CLIENT_SECRET`. Redirect-URL:
   `<NEXTAUTH_URL>/api/integrations/linkedin/callback`.
+- Koppel met een LinkedIn-account dat **beheerder** (of content-beheerder) van de bedrijfspagina is;
+  de callback controleert de rol via `organizationAcls` en slaat de organisatie-URN op de koppeling op.
+  Een oudere koppeling zonder paginarechten toont "Opnieuw koppelen" onder Integraties.
 - Zonder configuratie draait de publicatieservice in stub-modus en blijft de handmatige flow volledig
   werken: tekst kopiëren, afbeelding downloaden, LinkedIn openen, instructies volgen.
 - Tokens worden alleen server-side opgeslagen en nooit naar de browser gestuurd.
@@ -152,12 +165,33 @@ Onder **Contentinstellingen** zit één schakelaar "Volledig automatische modus"
 2. wordt bij elke post direct een fotorealistische afbeelding gegenereerd (contextueel, zonder mensen
    of gezichten in beeld);
 3. worden posts automatisch goedgekeurd;
-4. publiceert de publicatie-cron ze op het geplande moment via de officiële LinkedIn API,
-   **inclusief afbeelding** (LinkedIn Assets-upload).
+4. publiceert de publicatie-cron ze op het geplande moment via de officiële LinkedIn API namens de
+   bedrijfspagina, **inclusief afbeelding** (LinkedIn Images-upload).
 
 Vereist: een actieve LinkedIn-koppeling (Instellingen → Integraties). De gebruiker hoeft daarna alleen
 nog de publicatiefrequentie in te stellen. Zonder de schakelaar blijft de goedkeuringsflow gelden:
 er wordt nooit gepubliceerd zonder expliciet akkoord.
+
+## Website als bron: bedrijfsinformatie en cases
+
+- **Websitesamenvatting**: onder Bedrijfsprofiel haalt de app `www.ai-group.nl` op en vat die samen
+  (max. 300 woorden: wat, voor wie, aanpak, diensten, cases, genoemde resultaten). Die samenvatting gaat
+  als feitelijke context mee in elke post. Het model krijgt de expliciete instructie niets te verzinnen
+  dat niet in profiel, website of case staat.
+- **Cases**: `src/lib/services/websiteCases.ts` leest de case-kaarten op de homepage
+  (`/cases/*.html`) en de detailpagina's (vraagstuk, aanpak, oplossing, resultaat) en bewaart ze in
+  `WebsiteCase`. Verversen: knop onder Bedrijfsprofiel, of automatisch (max. eens per 12 uur) in de
+  generatie-cron. Cases die van de site verdwijnen worden inactief.
+- **Case-posts**: in de generator kies je een case (of een eigen omschrijving). De post gebruikt alleen
+  de case-tekst als bron en eindigt met "Lees de hele case: <url>"; de link wordt afgedwongen in
+  `ensureCaseLink`, ook als het model hem vergeet. De link staat ook op de post (`sourceUrl`).
+- **Automatische afwisseling**: de cron kiest per post de soort (case, product, bedrijf) die in de
+  laatste zes posts het minst voorkwam, en pakt daarbinnen de case die het langst niet aan bod kwam.
+- **Beeld**: de beeldprompt moet beginnen met de concrete werkomgeving van het onderwerp (sleuf met
+  kabels, contracten op tafel, magazijnstellingen, bouwplaats bij natuurgebied, …), Nederlandse setting,
+  geen mensen, geen tekst, geen AI-symboliek. `imageService` voegt daar altijd vaste fotografische
+  randvoorwaarden aan toe en gebruikt `gpt-image-1` op kwaliteit `high` (instelbaar via
+  `OPENAI_IMAGE_QUALITY`) met `dall-e-3` in stijl `natural`/`hd` als fallback.
 
 ## Automatische generatie (cron)
 

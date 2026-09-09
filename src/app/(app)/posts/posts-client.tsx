@@ -34,7 +34,16 @@ const FILTERS: (PostStatus | null)[] = [
   "FAILED",
 ];
 
-export function PostsClient({ posts, activeStatus }: { posts: PostRow[]; activeStatus: PostStatus | null }) {
+export function PostsClient({
+  posts,
+  activeStatus,
+  linkedInOrganizationId,
+}: {
+  posts: PostRow[];
+  activeStatus: PostStatus | null;
+  /** Bedrijfspagina waarop gepubliceerd wordt; null = persoonlijk profiel. */
+  linkedInOrganizationId: string | null;
+}) {
   const router = useRouter();
   const [deleting, setDeleting] = useState<PostRow | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
@@ -51,8 +60,17 @@ export function PostsClient({ posts, activeStatus }: { posts: PostRow[]; activeS
       if (action === "approve" && body.fullText) {
         const post = posts.find((p) => p.id === id);
         const imageUrl = body.imageUrl ?? (post?.imageUrl?.startsWith("http") ? post.imageUrl : post?.imageUrl ? `${window.location.origin}${post.imageUrl}` : null);
-        await publishPostToLinkedIn({ postId: id, text: body.fullText, imageUrl });
-        toast.success("Post goedgekeurd — LinkedIn geopend.");
+        await publishPostToLinkedIn({
+          postId: id,
+          text: body.fullText,
+          imageUrl,
+          organizationId: linkedInOrganizationId,
+        });
+        toast.success(
+          linkedInOrganizationId
+            ? "Post goedgekeurd — bedrijfspagina geopend (tekst staat op je klembord)."
+            : "Post goedgekeurd — LinkedIn geopend.",
+        );
       } else {
         const messages = { approve: "Post goedgekeurd.", reject: "Post afgewezen.", duplicate: "Post gedupliceerd." };
         toast.success(messages[action]);
